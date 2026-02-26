@@ -33,13 +33,3 @@ export function percentOf(cents: Cents, rate: number): Cents {
 export function sumCents(...values: Cents[]): Cents {
   return values.reduce((acc, val) => acc + val, 0);
 }
-
-/** GST: 1/11 of a GST-inclusive amount */
-export function gstFromInclusive(inclusiveCents: Cents): Cents {
-  return Math.round(inclusiveCents / 11);
-}
-
-/** Add GST to a GST-exclusive amount */
-export function addGst(exclusiveCents: Cents): Cents {
-  return Math.round(exclusiveCents * 1.1);
-}
