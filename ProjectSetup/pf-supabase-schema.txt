@@ -1,0 +1,832 @@
+================================================================================
+PF PLATFORM — SUPABASE TABLE STRUCTURE
+================================================================================
+Stack: Vercel (hosting) | Supabase (DB + Auth + Storage + Realtime) | GitHub
+       ElevenLabs (voice/audio) | PyCharm (IDE + project storage)
+================================================================================
+
+
+DEPLOYMENT ARCHITECTURE (revised)
+─────────────────────────────────
+Frontend (Next.js)          → Vercel
+API (Next.js API routes)    → Vercel (serverless functions)
+Background jobs             → Vercel Cron + Supabase Edge Functions
+Database                    → Supabase (Postgres)
+Auth                        → Supabase Auth (Google OAuth for PF team, magic link for clients)
+File storage                → Supabase Storage (statements, reconciliations, docs)
+Realtime                    → Supabase Realtime (claim status updates, exception alerts)
+Voice notifications         → ElevenLabs (optional: voice summaries for Uwe on monthly recon)
+Repo                        → GitHub
+IDE                         → PyCharm (monorepo, local Supabase CLI for dev)
+
+Note: No separate job server needed. Vercel Cron triggers monthly cycles,
+Supabase Edge Functions handle async processing, Supabase Database Webhooks
+fire on row changes (claim status → notification).
+
+
+================================================================================
+ENUMS (Supabase custom types)
+================================================================================
+
+CREATE TYPE building_type AS ENUM (
+  'house_2_residents',
+  'house_3_residents',
+  'villa_1_resident',
+  'villa_2_residents'
+);
+
+CREATE TYPE design_category AS ENUM (
+  'basic',
+  'improved_liveability',
+  'fully_accessible',
+  'robust',
+  'high_physical_support'
+);
+
+CREATE TYPE sda_enrolment_status AS ENUM (
+  'pending',
+  'enrolled',
+  'cancelled'
+);
+
+CREATE TYPE plan_management_type AS ENUM (
+  'ndia_managed',
+  'plan_managed',
+  'self_managed'
+);
+
+CREATE TYPE plan_status AS ENUM (
+  'active',
+  'expiring',
+  'expired'
+);
+
+CREATE TYPE claim_pathway AS ENUM (
+  'ndia_managed',
+  'agency_managed'
+);
+
+CREATE TYPE claim_status AS ENUM (
+  'draft',
+  'validated',
+  'submitted',
+  'approved',
+  'rejected',
+  'paid'
+);
+
+CREATE TYPE recon_status AS ENUM (
+  'pending',
+  'generated',
+  'reviewed',
+  'approved',
+  'published'
+);
+
+CREATE TYPE parse_status AS ENUM (
+  'pending',
+  'parsed',
+  'failed',
+  'manual_review'
+);
+
+CREATE TYPE statement_format AS ENUM (
+  'century21',
+  'aaron_moon',
+  'generic'
+);
+
+CREATE TYPE line_item_category AS ENUM (
+  'rent',
+  'sda_subsidy',
+  'energy_reimbursement',
+  'energy_invoice',
+  'maintenance',
+  'management_fee',
+  'other'
+);
+
+CREATE TYPE line_item_source AS ENUM (
+  'rental_statement',
+  'proda_claim',
+  'energy_invoice',
+  'manual'
+);
+
+CREATE TYPE user_role AS ENUM (
+  'admin',
+  'coordinator',
+  'finance'
+);
+
+CREATE TYPE client_entity_type AS ENUM (
+  'individual',
+  'company',
+  'trust'
+);
+
+CREATE TYPE exception_type AS ENUM (
+  'claim_rejection',
+  'plan_expiry',
+  'insufficient_funds',
+  'missing_statement',
+  'payment_overdue',
+  'booking_expiry',
+  'pace_transition'
+);
+
+CREATE TYPE exception_severity AS ENUM (
+  'info',
+  'warning',
+  'critical'
+);
+
+CREATE TYPE exception_status AS ENUM (
+  'open',
+  'acknowledged',
+  'resolved',
+  'dismissed'
+);
+
+CREATE TYPE booking_status AS ENUM (
+  'active',
+  'expired',
+  'cancelled'
+);
+
+CREATE TYPE my_provider_status AS ENUM (
+  'nominated',
+  'not_nominated'
+);
+
+
+================================================================================
+TABLE 1: properties
+─── SDA dwellings managed by Property Friends ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid    gen_random_uuid()
+  address_line_1          text              NOT NULL
+  address_line_2          text
+  suburb                  text              NOT NULL
+  state                   varchar(3)        NOT NULL            e.g. 'QLD'
+  postcode                varchar(4)        NOT NULL
+  property_label          text                                  Friendly name, e.g. '#50 Champion Dve'
+  building_type           building_type     NOT NULL            house_2, house_3, villa_1, villa_2
+  design_category         design_category   NOT NULL            basic → high_physical_support
+  has_ooa                 boolean           DEFAULT false       On-site Overnight Assistance
+  has_breakout_room       boolean           DEFAULT false       Robust category only
+  has_fire_sprinklers     boolean           DEFAULT false
+  location_factor         decimal(4,2)      NOT NULL            e.g. 1.08 from NDIS location sheet
+  max_residents           int               NOT NULL
+  sda_enrolment_id        text                                  NDIA enrolment certificate ref
+  sda_enrolment_status    sda_enrol_status  DEFAULT 'pending'
+  sda_enrolment_date      date
+  annual_sda_amount       decimal(10,2)                         Calculated: base × factor + supplements
+  owner_id                uuid              FK → clients.id     NOT NULL
+  rental_agency_id        uuid              FK → rental_agencies.id
+  drive_folder_id         text                                  Google Drive folder ID (legacy compat)
+  storage_path            text                                  Supabase Storage path for this property
+  created_at              timestamptz       DEFAULT now()
+  updated_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_properties_owner ON (owner_id)
+    - idx_properties_agency ON (rental_agency_id)
+    - idx_properties_enrolment ON (sda_enrolment_status)
+
+  RLS POLICIES:
+    - Coordinators/admin: full access
+    - Clients: SELECT only WHERE owner_id = auth.uid() (via client lookup)
+
+
+================================================================================
+TABLE 2: clients
+─── Property owners / investors. Receive monthly payouts. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  auth_user_id            uuid              FK → auth.users.id  Supabase Auth (magic link login)
+  full_name               text              NOT NULL
+  email                   text              NOT NULL, UNIQUE
+  phone                   text
+  entity_type             client_entity     DEFAULT 'individual' individual / company / trust
+  entity_name             text                                  Trust or company name
+  abn                     varchar(11)
+  bank_bsb                varchar(7)                            For payouts
+  bank_account_number     varchar(10)
+  notification_email      boolean           DEFAULT true
+  notification_voice      boolean           DEFAULT false        ElevenLabs voice summary opt-in
+  created_at              timestamptz       DEFAULT now()
+  updated_at              timestamptz       DEFAULT now()
+
+  RLS POLICIES:
+    - Client: SELECT/UPDATE own row only WHERE auth_user_id = auth.uid()
+    - Admin: full access
+
+
+================================================================================
+TABLE 3: participants
+─── NDIS participants living in SDA properties ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  ndis_number             varchar(20)       NOT NULL, UNIQUE    NDIS participant number
+  first_name              text              NOT NULL
+  last_name               text              NOT NULL
+  date_of_birth           date              NOT NULL
+  email                   text
+  phone                   text
+  plan_management_type    plan_mgmt_type    NOT NULL            ndia_managed / plan_managed / self_managed
+  plan_manager_id         uuid              FK → plan_managers  NULL if NDIA-managed
+  plan_status             plan_status       NOT NULL            active / expiring / expired
+  plan_start_date         date
+  plan_end_date           date
+  pace_transitioned       boolean           DEFAULT false       Moved to PACE system?
+  my_provider_status      my_provider_stat                      nominated / not_nominated
+  sda_category_funded     design_category                       Category funded in NDIS plan
+  ndia_last_synced_at     timestamptz                           Last API sync timestamp
+  created_at              timestamptz       DEFAULT now()
+  updated_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_participants_ndis ON (ndis_number)
+    - idx_participants_plan_status ON (plan_status)
+    - idx_participants_plan_end ON (plan_end_date)
+
+
+================================================================================
+TABLE 4: occupancies
+─── Links participants to properties with date ranges ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  property_id             uuid              FK → properties     NOT NULL
+  participant_id          uuid              FK → participants   NOT NULL
+  start_date              date              NOT NULL
+  end_date                date                                  NULL = currently residing
+  room_number             int
+  mrrc_fortnightly        decimal(8,2)                          Calculated MRRC per fortnight
+  created_at              timestamptz       DEFAULT now()
+  updated_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_occupancies_property ON (property_id)
+    - idx_occupancies_participant ON (participant_id)
+    - idx_occupancies_active ON (property_id) WHERE end_date IS NULL
+
+  CONSTRAINT:
+    - UNIQUE (property_id, participant_id, start_date)
+    - CHECK: end_date IS NULL OR end_date > start_date
+
+
+================================================================================
+TABLE 5: plan_managers
+─── Plan Management orgs. PF invoices these for agency-managed claims. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  name                    text              NOT NULL
+  email                   text              NOT NULL
+  phone                   text
+  abn                     varchar(11)
+  xero_contact_id         text                                  Linked Xero contact for invoicing
+  created_at              timestamptz       DEFAULT now()
+  updated_at              timestamptz       DEFAULT now()
+
+
+================================================================================
+TABLE 6: rental_agencies
+─── Property management agencies (Century 21, Aaron Moon) ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  name                    text              NOT NULL            'Century 21', 'Aaron Moon Realty'
+  email                   text
+  phone                   text
+  fee_rate                decimal(5,4)      NOT NULL            e.g. 0.0440 (4.4%)
+  statement_format        statement_format  NOT NULL            Parser adapter selection
+  sender_email_pattern    text                                  Gmail filter: e.g. '*@century21.com.au'
+  created_at              timestamptz       DEFAULT now()
+
+
+================================================================================
+TABLE 7: service_bookings
+─── NDIS service bookings. Synced from NDIA API. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  participant_id          uuid              FK → participants   NOT NULL
+  property_id             uuid              FK → properties     NOT NULL
+  ndia_booking_id         text              UNIQUE              NDIA reference
+  ndis_item_number        varchar(20)       NOT NULL            SDA support item code
+  start_date              date              NOT NULL
+  end_date                date              NOT NULL
+  allocated_amount        decimal(10,2)     NOT NULL            Annual NDIA allocation
+  claimed_ytd             decimal(10,2)     DEFAULT 0           Running total claimed this FY
+  remaining_amount        decimal(10,2)                         GENERATED: allocated - claimed_ytd
+  status                  booking_status    NOT NULL            active / expired / cancelled
+  last_synced_at          timestamptz
+  created_at              timestamptz       DEFAULT now()
+  updated_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_bookings_participant ON (participant_id)
+    - idx_bookings_property ON (property_id)
+    - idx_bookings_active ON (status) WHERE status = 'active'
+
+  TRIGGER:
+    - BEFORE UPDATE: recalc remaining_amount = allocated_amount - claimed_ytd
+
+
+================================================================================
+TABLE 8: claims
+─── SDA claims. One per participant per property per month. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  claim_reference         text              UNIQUE              PF internal ref: PF-2026-02-PROP-PART
+  property_id             uuid              FK → properties     NOT NULL
+  participant_id          uuid              FK → participants   NOT NULL
+  service_booking_id      uuid              FK → service_bookings
+  reconciliation_id       uuid              FK → reconciliations
+  claim_pathway           claim_pathway     NOT NULL            ndia_managed / agency_managed
+  period_start            date              NOT NULL
+  period_end              date              NOT NULL
+  sda_amount              decimal(10,2)     NOT NULL            Government subsidy component
+  mrrc_amount             decimal(10,2)                         Tenant rent contribution
+  total_amount            decimal(10,2)     NOT NULL
+  ndis_item_number        varchar(20)       NOT NULL
+  status                  claim_status      NOT NULL DEFAULT 'draft'
+  ndia_request_id         text                                  NDIA bulk payment request ref
+  ndia_response           jsonb                                 Raw API response (audit)
+  xero_invoice_id         text                                  Xero ref (agency-managed path)
+  rejection_reason        text
+  submitted_at            timestamptz
+  approved_at             timestamptz
+  paid_at                 timestamptz
+  created_at              timestamptz       DEFAULT now()
+  updated_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_claims_property ON (property_id)
+    - idx_claims_participant ON (participant_id)
+    - idx_claims_status ON (status)
+    - idx_claims_period ON (period_start, period_end)
+    - idx_claims_recon ON (reconciliation_id)
+
+  CONSTRAINT:
+    - UNIQUE (property_id, participant_id, period_start)
+
+  REALTIME:
+    - ENABLED — dashboard subscribes to status changes
+
+
+================================================================================
+TABLE 9: reconciliations
+─── Monthly reconciliation per property. Replaces the spreadsheet. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  property_id             uuid              FK → properties     NOT NULL
+  period_month            int               NOT NULL            1-12
+  period_year             int               NOT NULL            e.g. 2026
+  statement_number        int                                   Rental agency statement #
+  status                  recon_status      NOT NULL DEFAULT 'pending'
+  ── MONEY IN ──
+  total_rent_received     decimal(10,2)                         Rent from tenant via agency
+  total_sda_subsidy       decimal(10,2)                         PRODA claim amount
+  total_money_in          decimal(10,2)                         GENERATED: rent + subsidy
+  ── DEDUCTIONS ──
+  agency_management_fee   decimal(10,2)                         rental_agency.fee_rate × total_money_in
+  pf_management_fee       decimal(10,2)                         0.088 × total_money_in
+  gst_payable             decimal(10,2)
+  energy_reimbursement    decimal(10,2)                         Energy recovered from tenant/SIL
+  energy_invoice_amount   decimal(10,2)                         Actual energy company invoice
+  maintenance_costs       decimal(10,2)
+  other_deductions        decimal(10,2)
+  ── RESULT ──
+  net_client_payout       decimal(10,2)                         Final amount to property owner
+  ── WORKFLOW ──
+  approved_by             uuid              FK → users.id
+  approved_at             timestamptz
+  published_at            timestamptz                           When statement sent/available to client
+  ── STORAGE ──
+  statement_pdf_path      text                                  Supabase Storage path to generated PDF
+  drive_file_id           text                                  Google Drive file ID (legacy compat)
+  notes                   text
+  created_at              timestamptz       DEFAULT now()
+  updated_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_recon_property ON (property_id)
+    - idx_recon_period ON (period_year, period_month)
+    - UNIQUE (property_id, period_year, period_month)
+
+  REALTIME:
+    - ENABLED — dashboard shows recon pipeline status
+
+
+================================================================================
+TABLE 10: reconciliation_line_items
+─── Individual line items parsed from rental statements ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  reconciliation_id       uuid              FK → reconciliations NOT NULL, ON DELETE CASCADE
+  category                line_item_cat     NOT NULL            rent, sda_subsidy, energy, maintenance...
+  description             text              NOT NULL            Human-readable line description
+  amount                  decimal(10,2)     NOT NULL            Positive = in, negative = out
+  source                  line_item_source                      Where this came from
+  source_reference        text                                  Statement #, invoice #, claim ref
+  sort_order              int               DEFAULT 0
+  created_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_recon_items_recon ON (reconciliation_id)
+
+
+================================================================================
+TABLE 11: rental_statements
+─── Ingested rental agency statement PDFs (raw source data) ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  property_id             uuid              FK → properties     NOT NULL
+  rental_agency_id        uuid              FK → rental_agencies NOT NULL
+  statement_number        int
+  statement_month         int               NOT NULL
+  statement_year          int               NOT NULL
+  total_amount            decimal(10,2)
+  raw_parsed_data         jsonb                                 Full parser output
+  source_email_id         text                                  Gmail message ID
+  storage_object_path     text                                  Supabase Storage: statements/{property}/{year}/{month}.pdf
+  parse_status            parse_status      DEFAULT 'pending'
+  parsed_at               timestamptz
+  created_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_statements_property ON (property_id)
+    - idx_statements_period ON (statement_year, statement_month)
+    - UNIQUE (property_id, statement_year, statement_month)
+
+
+================================================================================
+TABLE 12: sda_pricing_rates
+─── SDA base rates by financial year. Updated each July. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  financial_year          varchar(7)        NOT NULL            e.g. '2025-26'
+  building_type           building_type     NOT NULL
+  design_category         design_category   NOT NULL
+  base_annual_rate        decimal(10,2)     NOT NULL
+  ooa_supplement          decimal(10,2)     DEFAULT 0
+  breakout_supplement     decimal(10,2)     DEFAULT 0           Robust only
+  fire_sprinkler_supp     decimal(10,2)     DEFAULT 0
+  effective_from          date              NOT NULL
+  effective_to            date
+  created_at              timestamptz       DEFAULT now()
+
+  CONSTRAINT:
+    - UNIQUE (financial_year, building_type, design_category)
+
+
+================================================================================
+TABLE 13: location_factors
+─── NDIS location multipliers. Applied to SDA base rate. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  region_name             text              NOT NULL            e.g. 'Townsville'
+  state                   varchar(3)        NOT NULL
+  factor                  decimal(4,2)      NOT NULL            e.g. 1.08
+  financial_year          varchar(7)        NOT NULL
+  created_at              timestamptz       DEFAULT now()
+
+  CONSTRAINT:
+    - UNIQUE (region_name, financial_year)
+
+
+================================================================================
+TABLE 14: mrrc_rates
+─── MRRC component rates. Updated when DSP/CRA rates change. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  effective_from          date              NOT NULL
+  effective_to            date
+  dsp_basic_fortnight     decimal(8,2)      NOT NULL            Max basic Disability Support Pension
+  pension_supp_fortnight  decimal(8,2)      NOT NULL            Max Pension Supplement
+  cra_max_fortnight       decimal(8,2)      NOT NULL            Max Commonwealth Rent Assistance
+  calculated_mrrc         decimal(8,2)                          GENERATED: (dsp × 0.25) + (supp × 0.25) + (cra × 1.0)
+  created_at              timestamptz       DEFAULT now()
+
+  CONSTRAINT:
+    - No overlapping effective date ranges
+
+
+================================================================================
+TABLE 15: users
+─── Internal PF team. Linked to Supabase Auth. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  auth_user_id            uuid              FK → auth.users     NOT NULL, UNIQUE
+  email                   text              NOT NULL, UNIQUE
+  full_name               text              NOT NULL
+  role                    user_role         NOT NULL            admin (Uwe), coordinator, finance (Ulla)
+  is_active               boolean           DEFAULT true
+  created_at              timestamptz       DEFAULT now()
+  updated_at              timestamptz       DEFAULT now()
+
+  RLS POLICIES:
+    - All authenticated internal users: SELECT
+    - Admin only: INSERT, UPDATE, DELETE
+
+
+================================================================================
+TABLE 16: exceptions
+─── Exception queue. Claim rejections, alerts, follow-ups. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  type                    exception_type    NOT NULL            claim_rejection, plan_expiry, etc.
+  severity                exception_sev     NOT NULL            info / warning / critical
+  title                   text              NOT NULL
+  description             text
+  property_id             uuid              FK → properties
+  participant_id          uuid              FK → participants
+  claim_id                uuid              FK → claims
+  reconciliation_id       uuid              FK → reconciliations
+  status                  exception_status  NOT NULL DEFAULT 'open'
+  assigned_to             uuid              FK → users
+  resolved_by             uuid              FK → users
+  resolved_at             timestamptz
+  resolution_notes        text
+  metadata                jsonb                                 Flexible: API error, rejection detail
+  created_at              timestamptz       DEFAULT now()
+  updated_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_exceptions_status ON (status) WHERE status = 'open'
+    - idx_exceptions_type ON (type)
+    - idx_exceptions_assigned ON (assigned_to)
+
+  REALTIME:
+    - ENABLED — dashboard exception counter + alerts
+
+
+================================================================================
+TABLE 17: audit_log
+─── Immutable compliance trail. Every state change logged. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  user_id                 uuid              FK → users          NULL for system/automated actions
+  action                  text              NOT NULL            e.g. 'claim.submitted', 'recon.approved'
+  entity_type             text              NOT NULL            'claim', 'reconciliation', 'property'...
+  entity_id               uuid              NOT NULL
+  changes                 jsonb                                 { before: {...}, after: {...} }
+  ip_address              inet
+  created_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_audit_entity ON (entity_type, entity_id)
+    - idx_audit_user ON (user_id)
+    - idx_audit_created ON (created_at)
+
+  NOTE: No UPDATE or DELETE allowed. INSERT only. Enforce via RLS + no grants.
+
+
+================================================================================
+TABLE 18: notifications
+─── Notification log. Tracks what was sent where. ───
+================================================================================
+
+  Column                  Type              Constraints         Notes
+  ──────────────────────  ────────────────  ──────────────────  ─────────────────────────────────
+  id                      uuid              PK, DEFAULT uuid
+  recipient_type          text              NOT NULL            'user', 'client'
+  recipient_id            uuid              NOT NULL            FK → users or clients
+  channel                 text              NOT NULL            'email', 'google_chat', 'voice', 'portal'
+  template                text              NOT NULL            'claim_submitted', 'recon_ready', etc.
+  subject                 text
+  body                    text
+  voice_audio_url         text                                  ElevenLabs generated audio URL
+  related_entity_type     text
+  related_entity_id       uuid
+  sent_at                 timestamptz
+  failed_at               timestamptz
+  error_message           text
+  created_at              timestamptz       DEFAULT now()
+
+  INDEXES:
+    - idx_notif_recipient ON (recipient_type, recipient_id)
+
+
+================================================================================
+SUPABASE STORAGE BUCKETS
+================================================================================
+
+  Bucket                  Access            Contents
+  ──────────────────────  ────────────────  ─────────────────────────────────────────
+  rental-statements       Private           Ingested PDF statements from agencies
+                                            Path: {property_id}/{year}/{month}/statement.pdf
+
+  reconciliations         Private           Generated reconciliation PDFs for clients
+                                            Path: {property_id}/{year}/{month}/recon.pdf
+
+  property-documents      Private           Rates notices, certs, plans, enrolment docs
+                                            Path: {property_id}/docs/{document_type}/{filename}
+
+  claim-evidence          Private           NDIA API responses, CSV uploads, invoice copies
+                                            Path: {property_id}/{year}/{month}/{claim_ref}/
+
+  voice-summaries         Private           ElevenLabs generated monthly audio summaries
+                                            Path: {client_id}/{year}/{month}/summary.mp3
+
+  RLS: All buckets restricted. Coordinators/admin full access.
+       Clients can read own property paths only.
+
+
+================================================================================
+SUPABASE EDGE FUNCTIONS
+================================================================================
+
+  Function                    Trigger                     Purpose
+  ────────────────────────    ──────────────────────────  ──────────────────────────────────
+  process-statement           Storage upload webhook      Parse uploaded statement PDF → line items
+  generate-reconciliation     Vercel Cron (1st of month)  Run recon engine for all properties
+  submit-ndia-claims          DB webhook: recon approved  Submit claims via NDIA API
+  generate-agency-invoices    DB webhook: recon approved  Push invoice data to Xero
+  publish-client-statement    DB webhook: recon published Generate PDF + notify client
+  sync-ndia-data              Vercel Cron (daily)         Pull participant plans, bookings, balances
+  send-notification           DB webhook: notifications   Route to email / Google Chat / ElevenLabs
+  generate-voice-summary      DB webhook: recon published Create ElevenLabs audio for opted-in clients
+
+
+================================================================================
+ROW LEVEL SECURITY (RLS) SUMMARY
+================================================================================
+
+  Table                   Admin    Coordinator    Finance(Ulla)    Client(Portal)
+  ──────────────────────  ───────  ─────────────  ───────────────  ───────────────
+  properties              CRUD     CRUD           READ             READ (own only)
+  clients                 CRUD     READ           READ             READ/UPDATE own
+  participants            CRUD     CRUD           READ             —
+  occupancies             CRUD     CRUD           READ             —
+  plan_managers           CRUD     CRUD           CRUD             —
+  rental_agencies         CRUD     READ           READ             —
+  service_bookings        CRUD     CRUD           READ             —
+  claims                  CRUD     CRUD           READ             —
+  reconciliations         CRUD     CRUD           READ             READ (own props)
+  recon_line_items        CRUD     CRUD           READ             READ (own props)
+  rental_statements       CRUD     CRUD           READ             —
+  sda_pricing_rates       CRUD     READ           READ             —
+  location_factors        CRUD     READ           READ             —
+  mrrc_rates              CRUD     READ           READ             —
+  users                   CRUD     READ           READ             —
+  exceptions              CRUD     CRUD           READ             —
+  audit_log               READ     READ           READ             —
+  notifications           CRUD     READ           READ             READ (own only)
+
+
+================================================================================
+DATABASE FUNCTIONS (Postgres)
+================================================================================
+
+  -- Auto-calculate total_money_in on reconciliations
+  CREATE OR REPLACE FUNCTION calc_total_money_in()
+  RETURNS TRIGGER AS $$
+  BEGIN
+    NEW.total_money_in := COALESCE(NEW.total_rent_received, 0)
+                        + COALESCE(NEW.total_sda_subsidy, 0);
+    RETURN NEW;
+  END;
+  $$ LANGUAGE plpgsql;
+
+  -- Auto-calculate remaining on service_bookings
+  CREATE OR REPLACE FUNCTION calc_booking_remaining()
+  RETURNS TRIGGER AS $$
+  BEGIN
+    NEW.remaining_amount := NEW.allocated_amount - COALESCE(NEW.claimed_ytd, 0);
+    RETURN NEW;
+  END;
+  $$ LANGUAGE plpgsql;
+
+  -- Auto-calculate MRRC
+  CREATE OR REPLACE FUNCTION calc_mrrc()
+  RETURNS TRIGGER AS $$
+  BEGIN
+    NEW.calculated_mrrc := (NEW.dsp_basic_fortnight * 0.25)
+                         + (NEW.pension_supp_fortnight * 0.25)
+                         + (NEW.cra_max_fortnight * 1.0);
+    RETURN NEW;
+  END;
+  $$ LANGUAGE plpgsql;
+
+  -- Auto-update updated_at timestamp
+  CREATE OR REPLACE FUNCTION update_timestamp()
+  RETURNS TRIGGER AS $$
+  BEGIN
+    NEW.updated_at := now();
+    RETURN NEW;
+  END;
+  $$ LANGUAGE plpgsql;
+
+  -- Apply updated_at trigger to all mutable tables
+  -- (properties, clients, participants, occupancies, service_bookings,
+  --  claims, reconciliations, users, exceptions)
+
+
+================================================================================
+ENTITY RELATIONSHIP SUMMARY
+================================================================================
+
+  clients ──────────< properties >──────── rental_agencies
+                         │
+                         ├──< occupancies >──── participants ──── plan_managers
+                         │
+                         ├──< service_bookings
+                         │
+                         ├──< claims
+                         │
+                         ├──< reconciliations ──< reconciliation_line_items
+                         │
+                         └──< rental_statements
+
+  users ──────< audit_log
+       └──────< exceptions
+       └──────< notifications (also → clients)
+
+  sda_pricing_rates ┐
+  location_factors   ├── Reference tables (read-heavy, rarely updated)
+  mrrc_rates         ┘
+
+
+================================================================================
+NOTES
+================================================================================
+
+1. MONEY: All monetary values stored as decimal(10,2). Application layer
+   uses integer cents for arithmetic to avoid floating-point drift.
+   Display layer formats to AUD.
+
+2. SUPABASE AUTH: Two user pools:
+   - PF team: Google OAuth (Uwe, coordinators, Ulla)
+   - Clients: Magic link email login
+   Both map to auth.users. Differentiated by users table (team) vs
+   clients table (investors). RLS uses auth.uid() for both.
+
+3. GOOGLE DRIVE COMPAT: drive_folder_id and drive_file_id columns
+   maintained for backward compatibility with existing PF folder
+   structure. New docs written to Supabase Storage AND Drive (dual-write
+   during transition). Can deprecate Drive writes once team is comfortable.
+
+4. ELEVENLABS: Voice summaries are opt-in per client. Edge function
+   generates a natural-language monthly summary from reconciliation data,
+   sends to ElevenLabs TTS, stores MP3 in Storage, links in notifications
+   table. Uwe could also get a daily voice briefing of exception queue.
+
+5. REALTIME: Enabled on claims, reconciliations, exceptions. Dashboard
+   subscribes via Supabase Realtime to show live pipeline status without
+   polling.
+
+6. PRISMA: Still used as the typed query layer on top of Supabase Postgres.
+   Supabase JS client handles Auth, Storage, Realtime. Prisma handles
+   all data queries. They coexist — different jobs, same database.

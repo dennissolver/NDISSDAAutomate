@@ -1,0 +1,485 @@
+================================================================================
+PF PLATFORM — DATA INPUT MAPPING
+================================================================================
+For each automated function: what data is needed, where it comes from,
+whether historical data can bootstrap it, and how current data gets in.
+================================================================================
+
+
+================================================================================
+FUNCTION 1: MONTHLY RECONCILIATION
+================================================================================
+The core monthly output — replaces the manual spreadsheet.
+Produces a statement per property showing money in, deductions, client payout.
+
+┌─────────────────────────────┬──────────────────────┬─────────────────────┬──────────────────────────────────────────────────┐
+│ DATA INPUT                  │ SOURCE               │ HISTORICAL OR LIVE? │ CAPTURE METHOD                                   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Rental agency monthly       │ Century 21 /         │ LIVE — new each     │ PRIMARY: Email watcher (Gmail API) auto-detects   │
+│ statement (PDF)             │ Aaron Moon Realty     │ month, arrives      │ incoming statement by sender pattern, downloads   │
+│ Contains:                   │                      │ via email           │ PDF attachment, triggers statement parser.         │
+│ - Tenant rent paid          │                      │                     │                                                  │
+│ - Energy reimbursements     │                      │                     │ FALLBACK: Rental agency uploads via a simple      │
+│ - Maintenance invoices      │                      │                     │ portal page (drag-drop PDF). No login needed —    │
+│ - Management fee            │                      │                     │ unique upload link per agency per property.        │
+│ - Statement number          │                      │                     │                                                  │
+│                             │                      │                     │ HISTORICAL: Yes — backfill past 12 months by      │
+│                             │                      │                     │ bulk-uploading saved PDFs from Google Drive.       │
+│                             │                      │                     │ Parser extracts and populates rental_statements.  │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Energy company invoice      │ Energy provider      │ LIVE — monthly      │ PRIMARY: Arrives as attachment in rental agency    │
+│ (actual cost)               │ (via rental agency   │                     │ statement email OR as separate email from energy   │
+│                             │ statement or direct)  │                     │ company. Email watcher classifies and extracts.   │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ FALLBACK: Coordinator uploads via dashboard.      │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ HISTORICAL: Included in past statements if        │
+│                             │                      │                     │ attached. Otherwise manual entry for backfill.    │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ SDA subsidy amount          │ NDIA (PRODA claim    │ LIVE — result of    │ AUTO: Claims service submits via NDIA API →       │
+│ (government payment)        │ result)              │ claim submission    │ approved amount flows back into reconciliation.   │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ UNTIL API LIVE: Coordinator enters the claimed    │
+│                             │                      │                     │ amount manually in the recon UI after submitting  │
+│                             │                      │                     │ via PRODA portal.                                │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ HISTORICAL: Backfill from past recon spreadsheets │
+│                             │                      │                     │ or PRODA payment history export.                 │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Agency fee rate             │ Rental agency        │ STATIC — rarely     │ CONFIG: Stored in rental_agencies table.           │
+│ (e.g. 4.4%)                │ contract             │ changes             │ Admin sets once. Updated if contract changes.     │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ PF fee rate                 │ PF internal          │ STATIC              │ CONFIG: Constant in shared/constants. Currently   │
+│ (8.8%)                      │                      │                     │ 0.088. Changeable in settings.                   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ GST amount                  │ Calculated           │ DERIVED             │ AUTO: Calculated by reconciliation engine from    │
+│                             │                      │                     │ applicable line items. Rules in business logic.   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Maintenance/repair costs    │ Rental agency        │ LIVE — irregular    │ AUTO: Extracted from rental statement line items. │
+│                             │ statement            │                     │ Parser identifies maintenance entries.            │
+│                             │                      │                     │ MANUAL: Coordinator can add ad-hoc line items    │
+│                             │                      │                     │ in recon UI for costs not on the statement.       │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Participant occupancy       │ PF internal          │ SEMI-STATIC         │ CONFIG: Stored in occupancies table. Coordinator  │
+│ (who lives where, since     │                      │ (changes on         │ updates when participant moves in/out.            │
+│ when, pro-rata needed?)     │                      │ move-in/out)        │                                                  │
+│                             │                      │                     │ HISTORICAL: Backfill from existing records.       │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ UI: Dashboard shows current occupancy per         │
+│                             │                      │                     │ property with move-in/out date entry.            │
+└─────────────────────────────┴──────────────────────┴─────────────────────┴──────────────────────────────────────────────────┘
+
+SUMMARY: 2 live inputs (statement + SDA amount), rest is config/derived.
+The statement is the critical dependency — everything else flows from it.
+
+
+================================================================================
+FUNCTION 2: NDIA-MANAGED CLAIMS (API SUBMISSION)
+================================================================================
+Submit bulk payment requests to NDIA for participants whose plans are NDIA-managed.
+
+┌─────────────────────────────┬──────────────────────┬─────────────────────┬──────────────────────────────────────────────────┐
+│ DATA INPUT                  │ SOURCE               │ HISTORICAL OR LIVE? │ CAPTURE METHOD                                   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Participant NDIS number     │ NDIA / PF records    │ SEMI-STATIC         │ AUTO (once API live): Synced from NDIA API.       │
+│                             │                      │                     │ INITIAL LOAD: Coordinator enters during           │
+│                             │                      │                     │ participant onboarding in dashboard UI.           │
+│                             │                      │                     │ HISTORICAL: Backfill from existing records.       │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Participant DOB             │ PF records           │ STATIC              │ MANUAL: Entered once during onboarding.           │
+│                             │                      │                     │ HISTORICAL: Backfill from existing records.       │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Plan status (active/expired)│ NDIA                 │ LIVE — can change   │ AUTO: NDIA API sync (daily cron) pulls current   │
+│                             │                      │ at any time         │ plan status, start/end dates, PACE flag.          │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ UNTIL API LIVE: Coordinator manually checks in   │
+│                             │                      │                     │ portal and updates participant record in UI.      │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ UI: Dashboard shows plan expiry warnings.         │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Service booking ID +        │ NDIA                 │ LIVE — updated      │ AUTO: NDIA API sync pulls active bookings,       │
+│ allocated amount +           │                      │ each July and       │ allocated amounts, remaining balances.            │
+│ remaining balance           │                      │ on plan changes     │                                                  │
+│                             │                      │                     │ UNTIL API LIVE: Coordinator enters booking ID    │
+│                             │                      │                     │ and amounts from portal screenshot into UI.       │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ HISTORICAL: Backfill current bookings manually.  │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ NDIS item number            │ NDIS Price Guide     │ SEMI-STATIC         │ CONFIG: Stored in shared/constants. Updated when │
+│ (SDA support item code)     │                      │ (annual updates)    │ NDIS pricing arrangements change.                │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Claim period (from-to)      │ Derived              │ DERIVED             │ AUTO: System generates based on calendar month   │
+│                             │                      │                     │ and participant occupancy dates (pro-rata if      │
+│                             │                      │                     │ move-in/out mid-month).                          │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Claim amount (SDA subsidy)  │ Calculated           │ DERIVED             │ AUTO: SDA calculator computes from property       │
+│                             │                      │                     │ attributes (building type, design category,       │
+│                             │                      │                     │ location factor, supplements) ÷ 12 for monthly. │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ CSV date format conversion  │ System               │ DERIVED             │ AUTO: System handles YYYY/MM/DD formatting.       │
+│ (US date for PRODA upload)  │                      │                     │ This manual step from the training manual is     │
+│                             │                      │                     │ completely eliminated.                           │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Uwe's myID passcode         │ Uwe's phone          │ LIVE — every login  │ ELIMINATED: API-based claims bypass portal login. │
+│ (for PRODA portal login)    │                      │                     │ This entire dependency disappears.               │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ UNTIL API LIVE: Still needed for manual portal   │
+│                             │                      │                     │ claims. No change to current process.            │
+└─────────────────────────────┴──────────────────────┴─────────────────────┴──────────────────────────────────────────────────┘
+
+SUMMARY: Pre-API, 3 manual inputs (plan status, booking details, passcode).
+Post-API, all automated except initial participant onboarding.
+
+
+================================================================================
+FUNCTION 3: AGENCY-MANAGED CLAIMS (INVOICING TO PLAN MANAGERS)
+================================================================================
+For participants whose plans are managed by a Plan Manager — PF invoices them directly.
+
+┌─────────────────────────────┬──────────────────────┬─────────────────────┬──────────────────────────────────────────────────┐
+│ DATA INPUT                  │ SOURCE               │ HISTORICAL OR LIVE? │ CAPTURE METHOD                                   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Participant details          │ PF records           │ SEMI-STATIC         │ CONFIG: Already in participants table from        │
+│ (name, NDIS#, DOB,          │                      │                     │ onboarding. No additional input needed.           │
+│ property, item number)      │                      │                     │                                                  │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Claim amount                │ Reconciliation       │ DERIVED             │ AUTO: Pulled from approved reconciliation.        │
+│                             │ engine output        │                     │                                                  │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Plan Manager details        │ PF records / NDIA    │ SEMI-STATIC         │ CONFIG: Stored in plan_managers table.            │
+│ (name, email, ABN)          │                      │                     │ Coordinator enters during participant setup.      │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ AUTO (future): NDIA API can confirm plan manager. │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Xero contact ID             │ Xero                 │ SEMI-STATIC         │ AUTO: Linked when plan manager first created.     │
+│ (for invoice generation)    │                      │                     │ Xero API creates contact if not exists.           │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Invoice approval            │ Ulla                 │ LIVE — monthly      │ UI: Ulla gets a "Review & Send" queue in the     │
+│ (Ulla reviews before send)  │                      │                     │ dashboard. System pre-generates invoices from     │
+│                             │                      │                     │ recon data. Ulla reviews, clicks approve, system │
+│                             │                      │                     │ pushes to Xero and sends to Plan Manager.         │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ This replaces the manual "submit request to Ulla │
+│                             │                      │                     │ with participant details" step from the manual.   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Payment receipt             │ Plan Manager         │ LIVE — after        │ AUTO: Xero webhook detects incoming payment,     │
+│ confirmation                │ (via bank/Xero)      │ invoice sent        │ matches to invoice, updates claim status to PAID. │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ FALLBACK: Coordinator manually marks as paid if  │
+│                             │                      │                     │ payment arrives outside Xero (direct deposit).   │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ EXCEPTION: If unpaid after 14/30 days, system    │
+│                             │                      │                     │ creates exception → triggers follow-up workflow.  │
+└─────────────────────────────┴──────────────────────┴─────────────────────┴──────────────────────────────────────────────────┘
+
+SUMMARY: Almost fully automated. Only human touchpoint is Ulla's review-and-approve.
+This is a massive upgrade from the current manual invoice creation process.
+
+
+================================================================================
+FUNCTION 4: SDA PRICING CALCULATOR
+================================================================================
+Calculates expected annual SDA income for a property.
+
+┌─────────────────────────────┬──────────────────────┬─────────────────────┬──────────────────────────────────────────────────┐
+│ DATA INPUT                  │ SOURCE               │ HISTORICAL OR LIVE? │ CAPTURE METHOD                                   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Building type               │ Property record      │ STATIC (per prop)   │ CONFIG: Set when property is created in system.  │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Design category             │ Property record      │ STATIC (per prop)   │ CONFIG: Set when property is created.             │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Location factor             │ NDIS location sheet  │ ANNUAL update       │ CONFIG: Stored in location_factors table.         │
+│                             │                      │                     │ Admin updates each July when NDIS publishes new  │
+│                             │                      │                     │ factors.                                         │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ UI: Settings page with editable location table.  │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ FUTURE: Scrape/fetch NDIS pricing page annually. │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ SDA base rates              │ NDIS Pricing         │ ANNUAL update       │ CONFIG: Stored in sda_pricing_rates table.        │
+│                             │ Arrangements         │ (each July)         │ Admin updates when new pricing published.         │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ HISTORICAL: Load current + prior year rates.     │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ OOA / Breakout room /       │ Property record      │ STATIC (per prop)   │ CONFIG: Boolean flags on property record.         │
+│ Fire sprinkler flags        │                      │                     │                                                  │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ MRRC component rates        │ Dept of Social       │ UPDATES ~2x/year    │ CONFIG: Stored in mrrc_rates table.               │
+│ (DSP, Pension Supp, CRA)    │ Services             │ (March + Sept)      │ Admin updates when DSS publishes new rates.       │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ FUTURE: Could auto-fetch from DSS website.       │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ UI: Settings page with effective-dated rate table.│
+└─────────────────────────────┴──────────────────────┴─────────────────────┴──────────────────────────────────────────────────┘
+
+SUMMARY: All reference data — updated 1-2x per year by admin.
+Can be fully backfilled. Calculator works day one with seeded data.
+
+
+================================================================================
+FUNCTION 5: PARTICIPANT MANAGEMENT
+================================================================================
+Track NDIS participants, their plans, occupancy, and PACE transitions.
+
+┌─────────────────────────────┬──────────────────────┬─────────────────────┬──────────────────────────────────────────────────┐
+│ DATA INPUT                  │ SOURCE               │ HISTORICAL OR LIVE? │ CAPTURE METHOD                                   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Participant personal info   │ PF records /         │ SEMI-STATIC         │ UI: Coordinator enters during onboarding via     │
+│ (name, NDIS#, DOB, contact) │ participant          │                     │ participant form in dashboard.                    │
+│                             │                      │                     │ HISTORICAL: Backfill from existing records.       │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Plan management type        │ NDIA / participant   │ SEMI-STATIC         │ UI: Selected during onboarding (NDIA-managed,    │
+│                             │                      │ (can change on      │ plan-managed, self-managed).                      │
+│                             │                      │ plan review)        │ AUTO (API): Confirmed via NDIA participant lookup.│
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Plan start/end dates        │ NDIA                 │ LIVE                │ AUTO: NDIA API daily sync.                        │
+│                             │                      │                     │ UNTIL API: Coordinator updates manually.          │
+│                             │                      │                     │ UI: Plan timeline visualization on participant   │
+│                             │                      │                     │ detail page with expiry countdown.               │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ PACE transition status      │ NDIA                 │ LIVE                │ AUTO: NDIA API sync detects PACE flag.            │
+│                             │                      │                     │ UNTIL API: Coordinator flags manually.            │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ My Provider relationship    │ NDIA                 │ LIVE                │ AUTO: NDIA API sync.                              │
+│ status                      │                      │                     │ Critical — if PF is not "my provider" for SDA,   │
+│                             │                      │                     │ claims take 10+ days instead of 24hrs.            │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ SDA category funded         │ NDIA plan            │ LIVE (per plan      │ AUTO: NDIA API sync.                              │
+│ in participant's plan       │                      │ review)             │ UNTIL API: Coordinator confirms from plan docs.  │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Move-in / move-out dates    │ PF internal /        │ LIVE (event-based)  │ UI: Coordinator records in occupancies section   │
+│                             │ rental agency        │                     │ of property detail page.                          │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ TRIGGER: Move-out creates exception alerting     │
+│                             │                      │                     │ team to vacancy → stop claims → update recon.    │
+└─────────────────────────────┴──────────────────────┴─────────────────────┴──────────────────────────────────────────────────┘
+
+SUMMARY: Initial load is manual (onboarding form). Ongoing maintenance
+automated via NDIA API sync for plan data. Occupancy changes are event-driven
+and entered by coordinators.
+
+
+================================================================================
+FUNCTION 6: PROPERTY REGISTRY
+================================================================================
+Master record of each SDA dwelling and its attributes.
+
+┌─────────────────────────────┬──────────────────────┬─────────────────────┬──────────────────────────────────────────────────┐
+│ DATA INPUT                  │ SOURCE               │ HISTORICAL OR LIVE? │ CAPTURE METHOD                                   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Property address + details  │ PF / investor        │ STATIC              │ UI: Admin enters via "Add Property" form.         │
+│                             │                      │                     │ HISTORICAL: Backfill all existing properties.     │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ SDA attributes (building    │ Enrolment docs /     │ STATIC (per prop)   │ UI: Set during property creation.                 │
+│ type, design category,      │ SDA assessment       │                     │ Validated against SDA rules (e.g. breakout room  │
+│ OOA, breakout, sprinklers)  │                      │                     │ only valid for Robust category).                 │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Location factor             │ NDIS location sheet  │ ANNUAL update       │ AUTO: Looked up from location_factors table       │
+│                             │                      │                     │ based on property postcode/region.                │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Owner (client) link         │ PF records           │ STATIC              │ UI: Selected from clients dropdown during         │
+│                             │                      │                     │ property creation.                                │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Rental agency link          │ PF records           │ STATIC              │ UI: Selected from rental_agencies dropdown.       │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ SDA enrolment status +      │ NDIA portal          │ EVENT-BASED         │ UI: Coordinator updates when enrolment approved. │
+│ enrolment ID                │                      │ (happens once per   │ Stores certificate reference.                     │
+│                             │                      │ property)           │                                                  │
+│                             │                      │                     │ FUTURE: If NDIA exposes enrolment API, auto-sync.│
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Property documents          │ Various (rates       │ EVENT-BASED         │ UI: Upload zone on property documents page.       │
+│ (rates notice, certs,       │ notice from council, │                     │ Stored in Supabase Storage.                      │
+│ plans, enrolment cert)      │ certs from assessor, │                     │                                                  │
+│                             │ plans from builder)  │                     │ FUTURE: Document classifier auto-tags by type.   │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ NOTE: These docs are uploaded once and archived. │
+│                             │                      │                     │ Rates notice may need annual refresh.            │
+└─────────────────────────────┴──────────────────────┴─────────────────────┴──────────────────────────────────────────────────┘
+
+SUMMARY: Almost entirely static/config data. Entered once, rarely changed.
+Can be fully backfilled from existing records on day one.
+
+
+================================================================================
+FUNCTION 7: CLIENT (INVESTOR) PORTAL
+================================================================================
+Self-service for property owners to view their statements and payments.
+
+┌─────────────────────────────┬──────────────────────┬─────────────────────┬──────────────────────────────────────────────────┐
+│ DATA INPUT                  │ SOURCE               │ HISTORICAL OR LIVE? │ CAPTURE METHOD                                   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Client registration info    │ Investor / PF        │ STATIC              │ UI: Admin creates client record. System sends     │
+│ (name, email, entity, bank) │                      │                     │ magic link invite for portal access.              │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ PORTAL UI: Client can update their own contact   │
+│                             │                      │                     │ details, bank info, notification preferences.     │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Monthly statements          │ Reconciliation       │ AUTO-GENERATED      │ AUTO: When reconciliation status → "published",  │
+│                             │ engine output        │                     │ system generates PDF statement and makes it       │
+│                             │                      │                     │ available in portal. Client gets email + optional │
+│                             │                      │                     │ ElevenLabs voice summary notification.            │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ HISTORICAL: Backfilled statements from past      │
+│                             │                      │                     │ reconciliation data.                             │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Payment history             │ Bank / Xero          │ LIVE                │ AUTO: Xero payment records synced. Shows when    │
+│                             │                      │                     │ client payouts were made and for how much.        │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ UNTIL XERO INTEGRATED: Coordinator manually      │
+│                             │                      │                     │ marks payouts as complete in system.              │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Voice summary opt-in        │ Client preference    │ STATIC              │ PORTAL UI: Toggle in client settings.             │
+│                             │                      │                     │ ElevenLabs generates natural-language monthly     │
+│                             │                      │                     │ audio summary when toggled on.                   │
+└─────────────────────────────┴──────────────────────┴─────────────────────┴──────────────────────────────────────────────────┘
+
+SUMMARY: No live data entry from clients. Portal is read-only + preferences.
+All content is generated from reconciliation outputs.
+
+
+================================================================================
+FUNCTION 8: EXCEPTION HANDLING & NOTIFICATIONS
+================================================================================
+Catch problems before they become crises. Alert the right people.
+
+┌─────────────────────────────┬──────────────────────┬─────────────────────┬──────────────────────────────────────────────────┐
+│ DATA INPUT                  │ SOURCE               │ HISTORICAL OR LIVE? │ CAPTURE METHOD                                   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Claim rejection details     │ NDIA API response    │ LIVE (event)        │ AUTO: API response parsed, exception created     │
+│                             │                      │                     │ with rejection reason, assigned to coordinator.   │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Plan expiry warning         │ NDIA API sync        │ LIVE (detected      │ AUTO: Daily sync checks plan_end_date. If within │
+│                             │                      │ during daily sync)  │ 30 days, creates warning exception.              │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Insufficient booking funds  │ NDIA API sync        │ LIVE                │ AUTO: remaining_amount < next monthly claim      │
+│                             │                      │                     │ amount → creates critical exception.             │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Missing statement           │ System detection     │ LIVE (time-based)   │ AUTO: If 5th of month arrives and no rental      │
+│                             │                      │                     │ statement received for a property → exception.   │
+│                             │                      │                     │ Coordinator can then chase agency or upload       │
+│                             │                      │                     │ manually.                                        │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Overdue agency invoice      │ Xero / system timer  │ LIVE (time-based)   │ AUTO: Invoice sent to Plan Manager → if unpaid   │
+│                             │                      │                     │ after 14 days → warning. 30 days → critical.     │
+│                             │                      │                     │ System can auto-send reminder via Xero.          │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Exception resolution        │ Coordinator / Uwe    │ LIVE (human action) │ UI: Exception queue in dashboard. Coordinator    │
+│                             │                      │                     │ acknowledges, adds resolution notes, marks       │
+│                             │                      │                     │ resolved. All logged to audit_log.               │
+├─────────────────────────────┼──────────────────────┼─────────────────────┼──────────────────────────────────────────────────┤
+│ Notification delivery       │ System               │ AUTO                │ AUTO: Exception → notification router decides    │
+│                             │                      │                     │ channel (email for standard, Google Chat for     │
+│                             │                      │                     │ urgent, voice for Uwe daily briefing).           │
+│                             │                      │                     │                                                  │
+│                             │                      │                     │ ElevenLabs: Daily exception briefing for Uwe —   │
+│                             │                      │                     │ "You have 2 open exceptions: one rejected claim  │
+│                             │                      │                     │ for 50 Champion Drive, one plan expiring for     │
+│                             │                      │                     │ participant Mario in 12 days."                   │
+└─────────────────────────────┴──────────────────────┴─────────────────────┴──────────────────────────────────────────────────┘
+
+SUMMARY: Almost entirely system-generated from other functions' data.
+Only human input is resolution actions. This function doesn't exist at all
+in PF's current process — it's net-new value.
+
+
+================================================================================
+EXTERNAL DATA PROVIDER PORTALS (NEW — YOUR QUESTION)
+================================================================================
+For stakeholders who need to push data INTO the PF system.
+
+WHO NEEDS TO PROVIDE DATA?          WHAT DO THEY PROVIDE?              PORTAL/UI NEEDED?
+────────────────────────────────    ─────────────────────────────────  ───────────────────────────────────────
+Rental agencies                     Monthly statements (PDF)           YES — simple upload page
+(Century 21, Aaron Moon)            Ad-hoc maintenance invoices        Unique URL per agency per property
+                                                                       No login required — token-based link
+                                                                       Drag-drop PDF → system parses
+                                                                       But email auto-capture is primary path
+
+Plan Managers                       Payment confirmations              NO — captured via Xero payment matching
+                                    (they pay invoices)                or bank feed. No portal needed.
+
+SIL Providers                       Energy usage data (for             MAYBE — simple form to report monthly
+                                    reimbursement split)               energy usage per property. Low priority.
+                                    Participant compatibility info     Could be email-based initially.
+
+Property owners (investors)         Updated bank details               YES — client portal (already planned)
+                                    Contact info changes               Self-service settings page
+                                    Document uploads (rates notice)    Document upload on property page
+
+NDIA                                Plan data, booking data,           NO PORTAL — API sync handles this
+                                    claim responses, notifications     automatically. NDIA doesn't use our UI.
+
+Builders                            Progress updates,                  MAYBE (Phase 4+) — simple status update
+                                    completion certificates            form. Very low priority. Currently handled
+                                                                       via ClickUp + email.
+
+SDA Assessors                       Certification documents            NO — assessor sends to PF via email.
+                                                                       Coordinator uploads to property record.
+
+
+================================================================================
+BOOTSTRAP STRATEGY — HISTORICAL DATA BACKFILL
+================================================================================
+
+What can we load from day one using existing PF data?
+
+SOURCE                              WHAT WE EXTRACT                    LOAD METHOD
+────────────────────────────────    ─────────────────────────────────  ──────────────────────────────────
+Existing recon spreadsheets         Past reconciliation figures         CSV import script → reconciliations
+(Google Drive)                      per property per month             + reconciliation_line_items tables
+
+Existing participant records        NDIS numbers, names, DOBs,         CSV import or manual entry via
+(wherever PF stores these)          plan types, occupancy dates        participant onboarding UI
+
+PRODA payment history export        Past claim amounts, dates,         CSV import → claims table with
+                                    statuses                           status = 'paid'
+
+Property details                    Addresses, building types,         Manual entry via property creation
+(contracts, enrolment certs)        design categories, owners          form — one-time effort for ~N props
+
+Rental agency statements            Past 12 months of PDFs             Bulk upload → statement parser runs
+(saved in Google Drive)             from Drive folders                 on each → populates rental_statements
+
+SDA pricing tables                  Current + prior year rates         Seed script from NDIS published data
+(NDIS website)                                                         → sda_pricing_rates table
+
+Location factors                    Current multipliers by region      Seed script → location_factors table
+(NDIS website)
+
+MRRC rates                          Current DSP/CRA/Supp rates         Seed script → mrrc_rates table
+(DSS website)
+
+
+================================================================================
+PHASED DATA CAPTURE APPROACH
+================================================================================
+
+PHASE 1 (MVP — Reconciliation)
+  MANUAL INPUT:        Coordinator uploads rental statement PDF (or email auto-captures)
+                       Coordinator enters SDA claim amount (until API integrated)
+  AUTO:                Statement parser extracts line items
+                       Recon engine calculates fees and client payout
+  CONFIG (one-time):   Properties, clients, rental agencies, fee rates
+  BACKFILL:            Past 12 months of recon data for reporting baseline
+
+PHASE 2 (Claims Automation)
+  MANUAL INPUT:        Reduced to zero for NDIA-managed (API handles it)
+                       Ulla reviews/approves agency invoices (one click)
+  AUTO:                NDIA API sync for plan data, booking data
+                       Claim generation, validation, submission
+                       Xero invoice generation for agency-managed
+  NEW UI:              Claims pipeline dashboard, Ulla's invoice queue
+
+PHASE 3 (Client Portal)
+  MANUAL INPUT:        None — portal is output-only
+  AUTO:                Statement PDF generation, portal publishing
+                       ElevenLabs voice summaries for opted-in clients
+  NEW UI:              Client-facing portal (read-only + preferences)
+
+PHASE 4 (Full Automation)
+  MANUAL INPUT:        Near zero — only exception resolution and onboarding
+  AUTO:                All exception detection and routing
+                       All notification channels
+                       Annual pricing rollover
+  NEW UI:              Exception queue, settings for pricing tables
+                       Optional: rental agency upload portal, builder status forms

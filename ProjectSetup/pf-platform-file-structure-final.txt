@@ -1,0 +1,629 @@
+pf-platform/
+│
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml                              # PR checks: lint, typecheck, test
+│   │   ├── deploy-preview.yml                  # Vercel preview deploy on PR
+│   │   └── deploy-production.yml               # Vercel production deploy on merge to main
+│   ├── CODEOWNERS
+│   └── pull_request_template.md
+│
+├── .vscode/                                     # PyCharm users: equivalent .idea/ is gitignored
+│   ├── settings.json                            # Shared workspace settings
+│   └── extensions.json                          # Recommended VS Code extensions (for non-PyCharm devs)
+│
+│
+│ ═══════════════════════════════════════════════════════════════════════════════
+│  APPS — Deployable applications
+│ ═══════════════════════════════════════════════════════════════════════════════
+│
+├── apps/
+│   │
+│   ├── web/                                     # ─── PF COORDINATOR DASHBOARD (Next.js → Vercel) ───
+│   │   ├── public/
+│   │   │   ├── favicon.ico
+│   │   │   └── pf-logo.svg
+│   │   │
+│   │   ├── app/                                 # Next.js App Router (app/ at root per Vercel convention)
+│   │   │   ├── layout.tsx                       # Root layout: providers, Supabase client, nav shell
+│   │   │   ├── page.tsx                         # Dashboard home — pipeline overview, exception count
+│   │   │   ├── globals.css                      # Tailwind base + PF brand tokens
+│   │   │   ├── error.tsx                        # Global error boundary
+│   │   │   ├── loading.tsx                      # Global loading state
+│   │   │   │
+│   │   │   ├── (auth)/
+│   │   │   │   ├── login/page.tsx               # Google OAuth via Supabase Auth
+│   │   │   │   ├── callback/route.ts            # Supabase auth callback handler
+│   │   │   │   └── layout.tsx                   # Auth layout (no sidebar)
+│   │   │   │
+│   │   │   ├── properties/
+│   │   │   │   ├── page.tsx                     # All SDA properties — list/grid with status badges
+│   │   │   │   ├── new/page.tsx                 # Add property form (building type, design cat, owner, agency)
+│   │   │   │   └── [id]/
+│   │   │   │       ├── page.tsx                 # Property detail — occupants, SDA attributes, enrolment status
+│   │   │   │       ├── reconciliation/page.tsx  # This property's reconciliation history
+│   │   │   │       ├── claims/page.tsx          # This property's claim history
+│   │   │   │       ├── documents/page.tsx       # Uploaded docs (rates, certs, plans) — Supabase Storage
+│   │   │   │       └── occupancy/page.tsx       # Move-in/out management, room assignment
+│   │   │   │
+│   │   │   ├── participants/
+│   │   │   │   ├── page.tsx                     # All participants — plan status, occupancy, warnings
+│   │   │   │   ├── new/page.tsx                 # Onboard participant form (NDIS#, DOB, plan type, plan mgr)
+│   │   │   │   └── [id]/
+│   │   │   │       └── page.tsx                 # Participant detail — plan timeline, bookings, claim history
+│   │   │   │
+│   │   │   ├── reconciliation/
+│   │   │   │   ├── page.tsx                     # Monthly recon dashboard — all properties, current period
+│   │   │   │   ├── [period]/
+│   │   │   │   │   └── page.tsx                 # Specific month (e.g. 2026-02) — per-property recon cards
+│   │   │   │   └── [period]/[propertyId]/
+│   │   │   │       └── page.tsx                 # Single property recon — line items, totals, approve button
+│   │   │   │
+│   │   │   ├── claims/
+│   │   │   │   ├── page.tsx                     # Claims pipeline — draft → validated → submitted → paid
+│   │   │   │   ├── ndia/page.tsx                # NDIA-managed claims — API submission queue
+│   │   │   │   └── agency/page.tsx              # Agency-managed — Ulla's invoice review & approve queue
+│   │   │   │
+│   │   │   ├── clients/
+│   │   │   │   ├── page.tsx                     # Property owners list
+│   │   │   │   ├── new/page.tsx                 # Add client form + send portal invite
+│   │   │   │   └── [id]/page.tsx                # Client detail — properties owned, payout history
+│   │   │   │
+│   │   │   ├── calculator/page.tsx              # SDA pricing calculator — interactive tool
+│   │   │   │
+│   │   │   ├── exceptions/page.tsx              # Exception queue — open items, severity, assignment
+│   │   │   │
+│   │   │   ├── settings/
+│   │   │   │   ├── page.tsx                     # General settings
+│   │   │   │   ├── team/page.tsx                # User management (coordinators, Ulla, Uwe)
+│   │   │   │   ├── integrations/page.tsx        # NDIA API, Xero, Google, ElevenLabs connection status
+│   │   │   │   ├── pricing/page.tsx             # SDA rate tables, location factors, MRRC rates
+│   │   │   │   └── agencies/page.tsx            # Rental agency management (fee rates, email patterns)
+│   │   │   │
+│   │   │   └── api/                             # Next.js API routes (Vercel serverless functions)
+│   │   │       ├── trpc/[trpc]/route.ts         # tRPC handler — all API routes via single endpoint
+│   │   │       ├── webhooks/
+│   │   │       │   ├── xero/route.ts            # Xero payment webhook → update claim status
+│   │   │       │   ├── supabase/route.ts        # Supabase Database webhook receiver
+│   │   │       │   └── gmail/route.ts           # Gmail push notification webhook
+│   │   │       ├── cron/
+│   │   │       │   ├── monthly-cycle/route.ts   # Vercel Cron: 1st of month → trigger recon pipeline
+│   │   │       │   ├── ndia-sync/route.ts       # Vercel Cron: daily → sync participant plans + bookings
+│   │   │       │   ├── exception-check/route.ts # Vercel Cron: daily → detect missing statements, expiries
+│   │   │       │   ├── payment-followup/route.ts # Vercel Cron: daily → chase overdue agency invoices
+│   │   │       │   └── annual-rollover/route.ts # Vercel Cron: 1 July → pricing update workflow
+│   │   │       └── upload/
+│   │   │           └── statement/route.ts       # Rental agency upload endpoint (token-authenticated)
+│   │   │
+│   │   ├── components/
+│   │   │   ├── ui/                              # Base UI primitives (shadcn/ui)
+│   │   │   │   ├── button.tsx
+│   │   │   │   ├── card.tsx
+│   │   │   │   ├── data-table.tsx               # Generic sortable/filterable table
+│   │   │   │   ├── dialog.tsx
+│   │   │   │   ├── dropdown-menu.tsx
+│   │   │   │   ├── form.tsx                     # React Hook Form + Zod integration
+│   │   │   │   ├── input.tsx
+│   │   │   │   ├── select.tsx
+│   │   │   │   ├── sidebar.tsx
+│   │   │   │   ├── status-badge.tsx             # Coloured badges for claim/recon/plan statuses
+│   │   │   │   ├── tabs.tsx
+│   │   │   │   ├── toast.tsx
+│   │   │   │   ├── file-upload.tsx              # Drag-drop file upload → Supabase Storage
+│   │   │   │   └── currency-display.tsx         # AUD formatting with positive/negative colouring
+│   │   │   │
+│   │   │   ├── layout/
+│   │   │   │   ├── app-shell.tsx                # Sidebar + header + content area
+│   │   │   │   ├── nav-links.tsx                # Navigation items with exception badge count
+│   │   │   │   └── user-menu.tsx                # Logged-in user dropdown (role shown)
+│   │   │   │
+│   │   │   ├── properties/
+│   │   │   │   ├── property-card.tsx             # Summary card: address, category, occupancy, status
+│   │   │   │   ├── property-form.tsx             # Create/edit property form with SDA validation
+│   │   │   │   ├── occupancy-timeline.tsx        # Visual timeline of who lived where and when
+│   │   │   │   └── sda-attributes-badge.tsx      # Building type + design category visual tag
+│   │   │   │
+│   │   │   ├── participants/
+│   │   │   │   ├── participant-form.tsx           # Onboarding form (NDIS#, DOB, plan type, plan mgr)
+│   │   │   │   ├── plan-status-indicator.tsx      # Active/expiring/expired with countdown
+│   │   │   │   └── participant-card.tsx
+│   │   │   │
+│   │   │   ├── reconciliation/
+│   │   │   │   ├── recon-table.tsx               # Interactive line items: category, amount, source
+│   │   │   │   ├── recon-summary.tsx             # Money in / deductions / client payout totals
+│   │   │   │   ├── recon-approval-bar.tsx        # Approve/reject with notes — triggers downstream
+│   │   │   │   ├── statement-preview.tsx         # How the client PDF will look
+│   │   │   │   └── recon-period-selector.tsx     # Month/year picker
+│   │   │   │
+│   │   │   ├── claims/
+│   │   │   │   ├── claim-pipeline.tsx            # Kanban or list: draft → submitted → paid
+│   │   │   │   ├── claim-detail-drawer.tsx       # Slide-out with full claim info + NDIA response
+│   │   │   │   ├── invoice-review-card.tsx       # Ulla's agency invoice approve/reject UI
+│   │   │   │   └── bulk-submit-button.tsx        # Submit all validated NDIA claims for period
+│   │   │   │
+│   │   │   ├── calculator/
+│   │   │   │   ├── sda-calculator-form.tsx       # Inputs: building type, category, location, extras
+│   │   │   │   ├── sda-result-display.tsx        # Annual SDA amount + monthly breakdown
+│   │   │   │   └── mrrc-calculator.tsx           # MRRC formula with current rates shown
+│   │   │   │
+│   │   │   ├── exceptions/
+│   │   │   │   ├── exception-card.tsx            # Type icon, severity badge, property/participant link
+│   │   │   │   └── resolution-form.tsx           # Acknowledge, add notes, resolve/dismiss
+│   │   │   │
+│   │   │   └── charts/
+│   │   │       ├── revenue-by-property.tsx       # Bar chart: money in per property per month
+│   │   │       ├── claim-status-donut.tsx        # Donut: claims by status
+│   │   │       └── payout-trend.tsx              # Line chart: client payouts over time
+│   │   │
+│   │   ├── hooks/
+│   │   │   ├── use-supabase.ts                  # Supabase client hook (SSR + client)
+│   │   │   ├── use-realtime.ts                  # Subscribe to Supabase Realtime (claims, exceptions)
+│   │   │   ├── use-auth.ts                      # Auth state, role checks
+│   │   │   └── use-trpc.ts                      # tRPC React Query hooks
+│   │   │
+│   │   ├── lib/
+│   │   │   ├── supabase/
+│   │   │   │   ├── client.ts                    # Browser Supabase client
+│   │   │   │   ├── server.ts                    # Server-side Supabase client (for RSC / API routes)
+│   │   │   │   └── middleware.ts                # Auth middleware for protected routes
+│   │   │   ├── trpc/
+│   │   │   │   ├── client.ts                    # tRPC client config
+│   │   │   │   └── provider.tsx                 # tRPC + React Query provider wrapper
+│   │   │   └── utils.ts                         # Date formatters, currency, helpers
+│   │   │
+│   │   ├── middleware.ts                        # Next.js middleware: auth redirect, role check
+│   │   ├── next.config.ts
+│   │   ├── tailwind.config.ts
+│   │   ├── vercel.json                          # Cron definitions for Vercel scheduler
+│   │   ├── tsconfig.json
+│   │   └── package.json
+│   │
+│   │
+│   └── portal/                                  # ─── CLIENT (INVESTOR) PORTAL (Next.js → Vercel) ───
+│       ├── public/
+│       │   ├── favicon.ico
+│       │   └── pf-logo.svg
+│       │
+│       ├── app/
+│       │   ├── layout.tsx                       # Portal layout: minimal nav, client branding
+│       │   ├── page.tsx                         # Client dashboard — latest statement, property summary
+│       │   ├── globals.css
+│       │   │
+│       │   ├── (auth)/
+│       │   │   ├── login/page.tsx               # Magic link login via Supabase Auth
+│       │   │   └── callback/route.ts
+│       │   │
+│       │   ├── properties/
+│       │   │   ├── page.tsx                     # Client's properties list
+│       │   │   └── [id]/
+│       │   │       ├── page.tsx                 # Property summary — SDA category, current tenants (anonymised)
+│       │   │       ├── statements/
+│       │   │       │   ├── page.tsx             # All monthly statements
+│       │   │       │   └── [period]/page.tsx    # Single statement detail — the full recon breakdown
+│       │   │       └── documents/page.tsx       # Enrolment cert, contracts (Supabase Storage)
+│       │   │
+│       │   ├── payments/page.tsx                # Payment history — all disbursements
+│       │   │
+│       │   ├── settings/page.tsx                # Profile, bank details, notification prefs, voice opt-in
+│       │   │
+│       │   └── api/
+│       │       └── trpc/[trpc]/route.ts         # tRPC handler (subset of routes — client-scoped via RLS)
+│       │
+│       ├── components/
+│       │   ├── ui/                              # Shared UI subset (or import from packages/ui)
+│       │   │   ├── button.tsx
+│       │   │   ├── card.tsx
+│       │   │   └── data-table.tsx
+│       │   ├── statements/
+│       │   │   ├── statement-card.tsx            # Monthly summary: period, income, payout
+│       │   │   ├── statement-detail.tsx          # Full line-by-line breakdown
+│       │   │   └── statement-download.tsx        # PDF download button (from Supabase Storage)
+│       │   ├── properties/
+│       │   │   ├── property-summary-card.tsx
+│       │   │   └── performance-chart.tsx         # Yield / income trend
+│       │   └── voice/
+│       │       └── voice-player.tsx              # ElevenLabs audio player for monthly summary
+│       │
+│       ├── hooks/
+│       │   ├── use-supabase.ts
+│       │   └── use-auth.ts
+│       │
+│       ├── lib/
+│       │   ├── supabase/
+│       │   │   ├── client.ts
+│       │   │   ├── server.ts
+│       │   │   └── middleware.ts
+│       │   └── utils.ts
+│       │
+│       ├── middleware.ts
+│       ├── next.config.ts
+│       ├── tailwind.config.ts
+│       ├── tsconfig.json
+│       └── package.json
+│
+│
+│ ═══════════════════════════════════════════════════════════════════════════════
+│  PACKAGES — Shared business logic, integrations, and types
+│ ═══════════════════════════════════════════════════════════════════════════════
+│
+├── packages/
+│   │
+│   ├── core/                                    # ─── DOMAIN BUSINESS LOGIC (zero framework deps) ───
+│   │   ├── src/
+│   │   │   ├── index.ts                         # Barrel export
+│   │   │   │
+│   │   │   ├── reconciliation/
+│   │   │   │   ├── reconciliation.service.ts    # Main engine: statement data + claim data → full recon
+│   │   │   │   ├── reconciliation.calculator.ts # Fee math: agency 4.4%, PF 8.8%, GST, net payout
+│   │   │   │   ├── reconciliation.validator.ts  # Cross-check: statement total == sum of line items
+│   │   │   │   ├── reconciliation.types.ts
+│   │   │   │   └── __tests__/
+│   │   │   │       ├── reconciliation.service.test.ts
+│   │   │   │       └── reconciliation.calculator.test.ts
+│   │   │   │
+│   │   │   ├── claims/
+│   │   │   │   ├── claims.service.ts            # Unified interface: route to NDIA or agency strategy
+│   │   │   │   ├── ndia-claim.strategy.ts       # NDIA path: validate plan → check booking → build request
+│   │   │   │   ├── agency-claim.strategy.ts     # Agency path: validate → build invoice payload for Xero
+│   │   │   │   ├── claim-validator.ts           # Active plan? Active booking? Sufficient funds? Correct item#?
+│   │   │   │   ├── claim-reference.generator.ts # PF-2026-02-PROP-PART format
+│   │   │   │   ├── claims.types.ts
+│   │   │   │   └── __tests__/
+│   │   │   │       ├── claims.service.test.ts
+│   │   │   │       ├── ndia-claim.strategy.test.ts
+│   │   │   │       └── claim-validator.test.ts
+│   │   │   │
+│   │   │   ├── pricing/
+│   │   │   │   ├── sda-calculator.ts            # Annual SDA: base × location × supplements
+│   │   │   │   ├── mrrc-calculator.ts           # MRRC: (DSP × 0.25) + (Supp × 0.25) + (CRA × 1.0)
+│   │   │   │   ├── pro-rata.ts                  # Mid-month move-in/out daily rate calculation
+│   │   │   │   ├── pricing.types.ts
+│   │   │   │   └── __tests__/
+│   │   │   │       ├── sda-calculator.test.ts
+│   │   │   │       ├── mrrc-calculator.test.ts
+│   │   │   │       └── pro-rata.test.ts
+│   │   │   │
+│   │   │   ├── properties/
+│   │   │   │   ├── property.service.ts          # CRUD, occupancy queries, status derivation
+│   │   │   │   ├── property.validators.ts       # SDA rule validation (e.g. breakout only for robust)
+│   │   │   │   ├── property.types.ts
+│   │   │   │   └── __tests__/
+│   │   │   │       └── property.service.test.ts
+│   │   │   │
+│   │   │   ├── participants/
+│   │   │   │   ├── participant.service.ts       # CRUD, plan expiry checks, PACE transition logic
+│   │   │   │   ├── participant.types.ts
+│   │   │   │   └── __tests__/
+│   │   │   │       └── participant.service.test.ts
+│   │   │   │
+│   │   │   ├── clients/
+│   │   │   │   ├── client.service.ts            # CRUD, statement delivery, portal invite
+│   │   │   │   ├── client.types.ts
+│   │   │   │   └── __tests__/
+│   │   │   │       └── client.service.test.ts
+│   │   │   │
+│   │   │   └── exceptions/
+│   │   │       ├── exception.service.ts         # Create, assign, resolve, escalate
+│   │   │       ├── exception.detector.ts        # Rules: missing statement, plan expiry, low funds
+│   │   │       ├── exception.types.ts
+│   │   │       └── __tests__/
+│   │   │           └── exception.detector.test.ts
+│   │   │
+│   │   ├── tsconfig.json
+│   │   └── package.json
+│   │
+│   │
+│   ├── db/                                      # ─── SUPABASE DATABASE LAYER ───
+│   │   ├── supabase/
+│   │   │   ├── migrations/                      # Supabase CLI migrations (sequential SQL files)
+│   │   │   │   ├── 00001_create_enums.sql
+│   │   │   │   ├── 00002_create_core_tables.sql          # properties, clients, participants, occupancies
+│   │   │   │   ├── 00003_create_claims_tables.sql        # service_bookings, claims, plan_managers
+│   │   │   │   ├── 00004_create_reconciliation_tables.sql # reconciliations, line_items, rental_statements
+│   │   │   │   ├── 00005_create_reference_tables.sql     # sda_pricing_rates, location_factors, mrrc_rates
+│   │   │   │   ├── 00006_create_system_tables.sql        # users, exceptions, audit_log, notifications
+│   │   │   │   ├── 00007_create_rental_agencies.sql
+│   │   │   │   ├── 00008_create_indexes.sql
+│   │   │   │   ├── 00009_create_triggers.sql             # updated_at, calc_total_money_in, calc_mrrc
+│   │   │   │   ├── 00010_create_rls_policies.sql         # Row Level Security for all tables
+│   │   │   │   ├── 00011_enable_realtime.sql             # Enable Realtime on claims, recons, exceptions
+│   │   │   │   └── 00012_create_storage_buckets.sql      # rental-statements, reconciliations, property-docs, voice
+│   │   │   │
+│   │   │   ├── seed.sql                         # Initial data: SDA rates, location factors, MRRC rates
+│   │   │   └── config.toml                      # Supabase local dev config
+│   │   │
+│   │   ├── src/
+│   │   │   ├── index.ts                         # Export Supabase client + generated types
+│   │   │   ├── client.ts                        # Supabase client factory (anon + service role)
+│   │   │   ├── types.ts                         # Generated types from `supabase gen types typescript`
+│   │   │   └── queries/                         # Reusable typed query functions
+│   │   │       ├── properties.queries.ts        # getPropertyById, getPropertiesByOwner, etc.
+│   │   │       ├── participants.queries.ts
+│   │   │       ├── claims.queries.ts
+│   │   │       ├── reconciliations.queries.ts
+│   │   │       ├── service-bookings.queries.ts
+│   │   │       └── exceptions.queries.ts
+│   │   │
+│   │   ├── tsconfig.json
+│   │   └── package.json
+│   │
+│   │
+│   ├── api/                                     # ─── tRPC API ROUTER ───
+│   │   ├── src/
+│   │   │   ├── index.ts                         # Export appRouter + type
+│   │   │   ├── trpc.ts                          # tRPC init, context creation
+│   │   │   ├── context.ts                       # Request context: supabase client, user, role
+│   │   │   │
+│   │   │   ├── routers/
+│   │   │   │   ├── property.router.ts           # CRUD, search, filter, occupancy updates
+│   │   │   │   ├── participant.router.ts        # CRUD, plan sync trigger, onboarding
+│   │   │   │   ├── reconciliation.router.ts     # Generate, review, approve, publish, export PDF
+│   │   │   │   ├── claims.router.ts             # Submit NDIA, approve agency invoices, retry rejected
+│   │   │   │   ├── client.router.ts             # CRUD, portal invite, statement access
+│   │   │   │   ├── calculator.router.ts         # SDA pricing + MRRC calculations
+│   │   │   │   ├── documents.router.ts          # Upload/download from Supabase Storage
+│   │   │   │   ├── exceptions.router.ts         # List, acknowledge, resolve, assign
+│   │   │   │   ├── dashboard.router.ts          # Aggregated stats for home page
+│   │   │   │   ├── settings.router.ts           # Pricing tables, agencies, system config
+│   │   │   │   └── auth.router.ts               # Session info, role check
+│   │   │   │
+│   │   │   └── middleware/
+│   │   │       ├── auth.middleware.ts            # Require authenticated Supabase session
+│   │   │       ├── role.middleware.ts            # Role gate: admin, coordinator, finance, client
+│   │   │       └── audit.middleware.ts           # Log all mutations → audit_log table
+│   │   │
+│   │   ├── tsconfig.json
+│   │   └── package.json
+│   │
+│   │
+│   ├── integrations/                            # ─── EXTERNAL SERVICE ADAPTERS ───
+│   │   ├── src/
+│   │   │   ├── index.ts
+│   │   │   │
+│   │   │   ├── ndia/                            # NDIA API (via aggregator initially, direct later)
+│   │   │   │   ├── ndia.client.ts               # HTTP client: base URL, auth headers, retry logic
+│   │   │   │   ├── ndia.auth.ts                 # Aggregator auth OR PRODA B2B auth (swappable)
+│   │   │   │   ├── payment-request.ts           # Submit + retrieve bulk payment requests
+│   │   │   │   ├── service-booking.ts           # Query bookings: allocated, claimed, remaining
+│   │   │   │   ├── participant-lookup.ts        # Validate participant exists, get plan status
+│   │   │   │   ├── plan-budget.ts               # Query funding balances
+│   │   │   │   ├── notifications.ts             # Subscribe to NDIA notifications (booking expiry, etc.)
+│   │   │   │   ├── ndia.types.ts
+│   │   │   │   └── __tests__/
+│   │   │   │       ├── ndia.client.test.ts      # Mock API responses for testing
+│   │   │   │       └── payment-request.test.ts
+│   │   │   │
+│   │   │   ├── google/                          # Google Workspace APIs
+│   │   │   │   ├── gmail.client.ts              # Read emails, download attachments, manage labels
+│   │   │   │   ├── gmail.watcher.ts             # Push notification setup for incoming statements
+│   │   │   │   ├── drive.client.ts              # Upload/download files (legacy folder compat)
+│   │   │   │   ├── drive.paths.ts               # PF folder convention: Shared Drive >> NDIS >> QLD >> ...
+│   │   │   │   ├── chat.client.ts               # Send notifications to Google Chat spaces
+│   │   │   │   ├── google.auth.ts               # Service account OAuth2 setup
+│   │   │   │   └── __tests__/
+│   │   │   │       └── drive.paths.test.ts
+│   │   │   │
+│   │   │   ├── xero/                            # Xero Accounting
+│   │   │   │   ├── xero.client.ts               # Xero API client with OAuth2 token refresh
+│   │   │   │   ├── invoice.ts                   # Create + send invoices to Plan Managers
+│   │   │   │   ├── payment.ts                   # Match incoming payments to invoices
+│   │   │   │   ├── contact.ts                   # Create/find Plan Manager contacts in Xero
+│   │   │   │   └── __tests__/
+│   │   │   │       └── invoice.test.ts
+│   │   │   │
+│   │   │   ├── elevenlabs/                      # ElevenLabs Text-to-Speech
+│   │   │   │   ├── elevenlabs.client.ts         # TTS API client
+│   │   │   │   ├── voice-summary.generator.ts   # Generate natural-language recon summary text
+│   │   │   │   ├── voice-summary.service.ts     # Text → ElevenLabs → MP3 → Supabase Storage
+│   │   │   │   └── __tests__/
+│   │   │   │       └── voice-summary.generator.test.ts
+│   │   │   │
+│   │   │   └── docusign/                        # DocuSign (Phase 4 — contracts)
+│   │   │       ├── docusign.client.ts
+│   │   │       ├── envelope.ts                  # Create, send, track contract envelopes
+│   │   │       └── templates.ts                 # PF contract templates
+│   │   │
+│   │   ├── tsconfig.json
+│   │   └── package.json
+│   │
+│   │
+│   ├── ingestion/                               # ─── DATA INGESTION & EXTRACTION ───
+│   │   ├── src/
+│   │   │   ├── index.ts
+│   │   │   │
+│   │   │   ├── statement-parser/
+│   │   │   │   ├── parser.ts                    # Orchestrator: detect format → adapter → normalise
+│   │   │   │   ├── pdf-extractor.ts             # PDF text extraction (pdf-parse or Supabase Edge + DocAI)
+│   │   │   │   ├── adapters/
+│   │   │   │   │   ├── century21.adapter.ts     # Century 21 statement layout → structured data
+│   │   │   │   │   ├── aaron-moon.adapter.ts    # Aaron Moon Realty statement layout → structured data
+│   │   │   │   │   └── generic.adapter.ts       # Fallback for unknown formats → manual review flag
+│   │   │   │   ├── normaliser.ts                # Map extracted data → StatementLineItem[]
+│   │   │   │   ├── statement.types.ts
+│   │   │   │   └── __tests__/
+│   │   │   │       ├── parser.test.ts
+│   │   │   │       ├── century21.adapter.test.ts
+│   │   │   │       ├── aaron-moon.adapter.test.ts
+│   │   │   │       └── __fixtures__/            # Sample statement PDFs for testing
+│   │   │   │           ├── century21-sample-01.pdf
+│   │   │   │           ├── century21-sample-02.pdf
+│   │   │   │           └── aaron-moon-sample-01.pdf
+│   │   │   │
+│   │   │   ├── email-watcher/
+│   │   │   │   ├── watcher.ts                   # Process Gmail push notifications
+│   │   │   │   ├── attachment-downloader.ts      # Extract PDF attachments → Supabase Storage
+│   │   │   │   ├── classifier.ts                # Identify: rental statement / energy invoice / NDIA notice
+│   │   │   │   ├── sender-rules.ts              # Match sender patterns to rental agencies
+│   │   │   │   └── __tests__/
+│   │   │   │       └── classifier.test.ts
+│   │   │   │
+│   │   │   └── document-classifier/
+│   │   │       ├── classifier.ts                # Route uploaded docs to correct Storage bucket/path
+│   │   │       ├── filename-generator.ts        # PF naming: "Reconciliation Stmt # for (month)"
+│   │   │       └── __tests__/
+│   │   │           └── classifier.test.ts
+│   │   │
+│   │   ├── tsconfig.json
+│   │   └── package.json
+│   │
+│   │
+│   ├── orchestration/                           # ─── WORKFLOW ORCHESTRATION ───
+│   │   ├── src/
+│   │   │   ├── index.ts
+│   │   │   │
+│   │   │   ├── workflows/
+│   │   │   │   ├── monthly-claim-cycle.ts       # Master: ingest → recon → validate → claim → publish
+│   │   │   │   ├── statement-processing.ts      # Statement uploaded → parse → create recon draft
+│   │   │   │   ├── claim-submission.ts          # Recon approved → split NDIA/agency → submit
+│   │   │   │   ├── client-statement.ts          # Recon published → generate PDF → notify client
+│   │   │   │   └── annual-rollover.ts           # July: update rates, recalculate annual SDA amounts
+│   │   │   │
+│   │   │   ├── exceptions/
+│   │   │   │   ├── exception.handler.ts         # Central exception creation + routing
+│   │   │   │   ├── rules/
+│   │   │   │   │   ├── claim-rejection.rule.ts  # NDIA API rejects → categorise → retry or escalate
+│   │   │   │   │   ├── plan-expiry.rule.ts      # Plan end within 30 days → warning exception
+│   │   │   │   │   ├── insufficient-funds.rule.ts # Remaining < monthly claim → critical
+│   │   │   │   │   ├── missing-statement.rule.ts  # 5th of month, no statement → warning
+│   │   │   │   │   └── payment-overdue.rule.ts  # Agency invoice unpaid 14/30 days → warning/critical
+│   │   │   │   └── __tests__/
+│   │   │   │       └── plan-expiry.rule.test.ts
+│   │   │   │
+│   │   │   └── notifications/
+│   │   │       ├── notification.router.ts       # Route to correct channel based on type + recipient
+│   │   │       ├── templates/
+│   │   │       │   ├── claim-submitted.ts
+│   │   │       │   ├── claim-rejected.ts
+│   │   │       │   ├── recon-ready-for-review.ts
+│   │   │       │   ├── statement-published.ts
+│   │   │       │   ├── exception-alert.ts
+│   │   │       │   └── payment-overdue.ts
+│   │   │       └── channels/
+│   │   │           ├── email.channel.ts         # Send via Gmail API
+│   │   │           ├── chat.channel.ts          # Send via Google Chat API
+│   │   │           └── voice.channel.ts         # Generate via ElevenLabs, store in Supabase Storage
+│   │   │
+│   │   ├── tsconfig.json
+│   │   └── package.json
+│   │
+│   │
+│   └── shared/                                  # ─── SHARED TYPES, CONSTANTS, UTILITIES ───
+│       ├── src/
+│       │   ├── index.ts
+│       │   │
+│       │   ├── types/
+│       │   │   ├── property.types.ts
+│       │   │   ├── participant.types.ts
+│       │   │   ├── claim.types.ts
+│       │   │   ├── reconciliation.types.ts
+│       │   │   ├── client.types.ts
+│       │   │   ├── pricing.types.ts
+│       │   │   ├── exception.types.ts
+│       │   │   └── common.types.ts              # AuditMeta, Pagination, DateRange, Money, Period
+│       │   │
+│       │   ├── constants/
+│       │   │   ├── sda-pricing.ts               # Current SDA base rates (seeded from NDIS data)
+│       │   │   ├── location-factors.ts          # Location multipliers by region
+│       │   │   ├── mrrc-rates.ts                # Current DSP, Pension Supplement, CRA rates
+│       │   │   ├── fee-structure.ts             # PF_FEE_RATE = 0.088, default AGENCY_FEE_RATE = 0.044
+│       │   │   ├── ndis-item-codes.ts           # SDA support item codes
+│       │   │   ├── design-categories.ts         # Enum labels, validation rules (breakout→robust only)
+│       │   │   ├── building-types.ts            # Enum labels, max residents per type
+│       │   │   └── storage-paths.ts             # Supabase Storage path conventions
+│       │   │
+│       │   ├── enums/
+│       │   │   ├── claim-status.ts
+│       │   │   ├── claim-pathway.ts
+│       │   │   ├── recon-status.ts
+│       │   │   ├── plan-status.ts
+│       │   │   ├── exception-type.ts
+│       │   │   └── booking-status.ts
+│       │   │
+│       │   └── utils/
+│       │       ├── money.ts                     # Integer cents arithmetic — never float for money
+│       │       ├── dates.ts                     # AU format, US format (PRODA CSV), period helpers
+│       │       ├── ndis-number.ts               # NDIS number format validation
+│       │       ├── gst.ts                       # GST calculation (1/11th of GST-inclusive amount)
+│       │       ├── filename.ts                  # PF naming convention generators
+│       │       └── period.ts                    # Month/year period helpers, financial year detection
+│       │
+│       ├── tsconfig.json
+│       └── package.json
+│
+│
+│ ═══════════════════════════════════════════════════════════════════════════════
+│  SUPABASE — Edge Functions (for async processing that exceeds Vercel limits)
+│ ═══════════════════════════════════════════════════════════════════════════════
+│
+├── supabase/
+│   ├── functions/
+│   │   ├── process-statement/index.ts           # Triggered by Storage upload → parse PDF → populate DB
+│   │   ├── generate-voice-summary/index.ts      # Triggered by recon published → ElevenLabs TTS → Storage
+│   │   └── ndia-webhook-handler/index.ts        # NDIA notification receiver (if direct API integration)
+│   │
+│   ├── config.toml                              # Supabase project config (local dev)
+│   └── .env.local                               # Local dev secrets (gitignored)
+│
+│
+│ ═══════════════════════════════════════════════════════════════════════════════
+│  SCRIPTS — Data backfill, seeding, utilities
+│ ═══════════════════════════════════════════════════════════════════════════════
+│
+├── scripts/
+│   ├── seed/
+│   │   ├── seed-sda-rates.ts                    # Load current + historical SDA pricing from NDIS data
+│   │   ├── seed-location-factors.ts             # Load location multipliers
+│   │   ├── seed-mrrc-rates.ts                   # Load current MRRC component rates
+│   │   └── seed-test-data.ts                    # Dev: sample properties, participants, recons
+│   │
+│   ├── backfill/
+│   │   ├── import-properties.ts                 # CSV → properties table
+│   │   ├── import-participants.ts               # CSV → participants + occupancies tables
+│   │   ├── import-past-reconciliations.ts       # CSV → reconciliations + line_items tables
+│   │   ├── import-past-claims.ts                # PRODA export → claims table
+│   │   └── bulk-parse-statements.ts             # Folder of PDFs → statement parser → rental_statements
+│   │
+│   └── utils/
+│       ├── generate-types.sh                    # Run `supabase gen types typescript`
+│       └── reset-local-db.sh                    # Drop + recreate local Supabase DB
+│
+│
+│ ═══════════════════════════════════════════════════════════════════════════════
+│  DOCS
+│ ═══════════════════════════════════════════════════════════════════════════════
+│
+├── docs/
+│   ├── architecture.md                          # System architecture overview (link to React diagram)
+│   ├── data-model.md                            # Supabase table structure + relationships
+│   ├── data-inputs.md                           # Data input mapping (from our analysis)
+│   ├── stakeholders.md                          # Stakeholder map + PF's role in SDA ecosystem
+│   ├── workflows/
+│   │   ├── monthly-claim-cycle.md               # Step-by-step monthly workflow
+│   │   ├── reconciliation.md                    # Reconciliation engine logic + fee formulas
+│   │   ├── ndia-claims.md                       # NDIA API claim submission flow
+│   │   ├── agency-claims.md                     # Agency-managed invoice pathway
+│   │   └── exception-handling.md                # Exception types, rules, routing
+│   ├── integrations/
+│   │   ├── ndia-api.md                          # NDIA API setup, aggregator onboarding
+│   │   ├── google-workspace.md                  # Gmail, Drive, Chat integration
+│   │   ├── xero.md                              # Xero invoicing setup
+│   │   ├── elevenlabs.md                        # Voice summary configuration
+│   │   └── supabase.md                          # Supabase project setup, RLS, Storage
+│   ├── deployment.md                            # Vercel + Supabase deployment guide
+│   └── onboarding.md                            # New developer setup (PyCharm + Supabase CLI)
+│
+│
+│ ═══════════════════════════════════════════════════════════════════════════════
+│  ROOT CONFIG
+│ ═══════════════════════════════════════════════════════════════════════════════
+│
+├── turbo.json                                   # Turborepo pipeline: build, lint, test, typecheck
+├── package.json                                 # Root workspace: scripts, shared devDeps
+├── pnpm-workspace.yaml                          # Workspace: apps/*, packages/*, supabase/*
+├── tsconfig.base.json                           # Shared TS config: strict, paths
+├── .eslintrc.js                                 # Shared ESLint: typescript, react, import rules
+├── .prettierrc                                  # Consistent formatting
+├── .gitignore                                   # node_modules, .env*, .idea/, .next/, supabase/.temp/
+├── .nvmrc                                       # Node 20 LTS
+├── .env.example                                 # All required env vars documented
+└── README.md                                    # Project overview, quick start, architecture links
