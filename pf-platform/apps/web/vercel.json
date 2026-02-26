@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/monthly-cycle",
+      "schedule": "0 2 1 * *"
+    },
+    {
+      "path": "/api/cron/ndia-sync",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/exception-check",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/payment-followup",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

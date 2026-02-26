@@ -1,0 +1,31 @@
+{
+  "name": "pf-platform",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "db:generate": "cd packages/db && pnpm run generate",
+    "db:migrate": "cd packages/db && pnpm run migrate",
+    "db:seed": "cd packages/db && pnpm run seed",
+    "db:reset": "cd packages/db && pnpm run reset",
+    "scaffold:seed": "tsx scripts/seed/seed-sda-rates.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0",
+    "tsx": "^4.7.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "vitest": "^1.6.0"
+  },
+  "packageManager": "pnpm@9.1.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
