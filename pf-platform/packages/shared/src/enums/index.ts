@@ -4,3 +4,4 @@ export * from './recon-status';
 export * from './plan-status';
 export * from './exception-type';
 export * from './booking-status';
+export * from './user-role';
