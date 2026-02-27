@@ -7,7 +7,6 @@ import {
   getPropertyWithOccupants,
   createProperty,
   updateProperty,
-  getPropertiesByOwner,
 } from '@pf/db';
 import { calculatePropertySdaAmount } from '@pf/core';
 

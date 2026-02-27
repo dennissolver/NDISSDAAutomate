@@ -1,7 +1,7 @@
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { appRouter, createContext } from '@pf/api';
 import { createServerClient, getUserByAuthId } from '@pf/db';
-import { createServerSupabaseClient } from '../../../../lib/supabase/server';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 const handler = (req: Request) =>
   fetchRequestHandler({

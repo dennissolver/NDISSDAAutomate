@@ -5,11 +5,11 @@ import { Header } from './header';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="pl-60">
         <Header />
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+        <main className="px-6 py-6">
           {children}
         </main>
       </div>

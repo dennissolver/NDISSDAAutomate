@@ -1,6 +1,6 @@
 import type { TypedSupabaseClient } from '../client';
 import type { Property, PaginatedResult } from '@pf/shared';
-import { toCents, type PaginationOpts, applyPagination, paginate, throwOnError } from '../helpers';
+import { type PaginationOpts, applyPagination, paginate, throwOnError } from '../helpers';
 
 function mapRow(row: Record<string, unknown>): Property {
   return {
@@ -34,7 +34,8 @@ export async function getProperties(
   db: TypedSupabaseClient,
   opts?: PaginationOpts,
 ): Promise<PaginatedResult<Property>> {
-  let query = db.from('properties').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query: any = db.from('properties').select('*', { count: 'exact' }).order('created_at', { ascending: false });
   query = applyPagination(query, opts);
   const { data, count, error } = await query;
   if (error) throw new Error(error.message);

@@ -27,7 +27,8 @@ export async function getParticipants(
   db: TypedSupabaseClient,
   opts?: PaginationOpts & { planStatus?: string },
 ): Promise<PaginatedResult<Participant>> {
-  let query = db.from('participants').select('*', { count: 'exact' }).order('last_name');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query: any = db.from('participants').select('*', { count: 'exact' }).order('last_name');
   if (opts?.planStatus) {
     query = query.eq('plan_status', opts.planStatus);
   }

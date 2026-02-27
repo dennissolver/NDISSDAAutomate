@@ -12,7 +12,7 @@ import {
   getRentalAgencyById,
 } from '@pf/db';
 import { generateReconciliation } from '@pf/core';
-import { toDollars, toCents } from '@pf/shared';
+import { toDollars } from '@pf/shared';
 
 export const reconciliationRouter = router({
   list: protectedProcedure

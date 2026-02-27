@@ -1,4 +1,4 @@
-import type { Cents, Period } from '@pf/shared';
+import type { Cents } from '@pf/shared';
 import type { ValidationError } from '../reconciliation';
 
 export interface ClaimDraft {
@@ -14,7 +14,7 @@ export interface ClaimDraft {
   ndisItemNumber: string;
 }
 
-export function validateClaimDraft(draft: ClaimDraft, bookingAllocatedAmount?: Cents, bookingRemainingAmount?: Cents): ValidationError[] {
+export function validateClaimDraft(draft: ClaimDraft, _bookingAllocatedAmount?: Cents, bookingRemainingAmount?: Cents): ValidationError[] {
   const errors: ValidationError[] = [];
 
   if (draft.totalAmount <= 0) {

@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
-import { TRPCProvider } from '../lib/trpc/provider';
-import { AppShell } from '../components/layout/app-shell';
+import { TRPCProvider } from '@/lib/trpc/provider';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'PF Platform — Property Friends',
@@ -15,9 +17,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-gray-50 antialiased">
+      <body className={`${inter.className} min-h-screen bg-gray-50 antialiased`}>
         <TRPCProvider>
-          <AppShell>{children}</AppShell>
+          {children}
         </TRPCProvider>
       </body>
     </html>

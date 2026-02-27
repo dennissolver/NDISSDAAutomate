@@ -1,7 +1,6 @@
 import {
   type Property,
   type Occupancy,
-  type SdaPricingInput,
   type SdaPricingResult,
 } from '@pf/shared';
 import { calculateSdaPricing } from '../pricing';

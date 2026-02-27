@@ -1,4 +1,4 @@
-import type { Pagination, PaginatedResult } from '@pf/shared';
+import type { PaginatedResult } from '@pf/shared';
 import { toCents, toDollars } from '@pf/shared';
 
 export { toCents, toDollars };
