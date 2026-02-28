@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { BuildingType, DesignCategory } from '@pf/shared';
 import { trpc } from '@/lib/trpc/client';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 export default function CalculatorPage() {
   return (
@@ -11,6 +13,8 @@ export default function CalculatorPage() {
         <h1 className="text-2xl font-bold text-gray-900">SDA & MRRC Calculator</h1>
         <p className="mt-1 text-sm text-gray-500">Estimate SDA funding amounts and Maximum Reasonable Rent Contribution (MRRC) for any property configuration. Use this to model pricing before registering properties.</p>
       </div>
+      <WorkflowDiagram steps={WORKFLOWS.calculator.steps} />
+
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <SdaCalculator />
         <MrrcCalculator />

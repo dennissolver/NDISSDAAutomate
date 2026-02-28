@@ -3,6 +3,8 @@
 import { Building2, Users, FileCheck, AlertTriangle, Receipt } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { formatAud } from '@pf/shared';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 export default function DashboardPage() {
   const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
@@ -18,6 +20,8 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="mt-1 text-sm text-gray-500">Your overview of Property Friends' NDIS SDA operations.</p>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS.dashboard.steps} />
 
       {/* Getting Started Callout */}
       <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">

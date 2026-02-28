@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -59,6 +61,8 @@ export default function NewClaimPage() {
           <p className="mt-0.5 text-sm text-gray-500">Select a property and participant to generate an SDA claim for the specified period. The system will calculate SDA amount, MRRC deduction, and occupied days automatically based on stored data.</p>
         </div>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS['claims-new'].steps} currentStep={WORKFLOWS['claims-new'].currentStep} />
 
       {isLoadingData ? (
         <p className="text-gray-500">Loading properties and participants...</p>

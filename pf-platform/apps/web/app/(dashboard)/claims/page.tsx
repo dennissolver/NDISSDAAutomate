@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { formatAud } from '@pf/shared';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -59,6 +61,8 @@ export default function ClaimsPage() {
           </select>
         </div>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS['claims-list'].steps} />
 
       <p className="text-xs text-gray-400">Claim lifecycle: Draft → Validated → Submitted → Approved → Paid. Rejected claims generate an exception for review.</p>
 

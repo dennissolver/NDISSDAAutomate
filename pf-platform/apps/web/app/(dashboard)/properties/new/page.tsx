@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { BuildingType, DesignCategory } from '@pf/shared';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 export default function NewPropertyPage() {
   const router = useRouter();
@@ -48,6 +50,8 @@ export default function NewPropertyPage() {
           <p className="mt-1 text-sm text-gray-500">Register an SDA property. The building type, design category, and location factor determine the NDIS funding rate for this property.</p>
         </div>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS['properties-new'].steps} currentStep={WORKFLOWS['properties-new'].currentStep} />
 
       <form onSubmit={handleSubmit} className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

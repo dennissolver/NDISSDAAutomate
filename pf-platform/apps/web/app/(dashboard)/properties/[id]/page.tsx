@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { formatAud, toCents } from '@pf/shared';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 export default function PropertyDetailPage() {
   const params = useParams();
@@ -33,6 +35,8 @@ export default function PropertyDetailPage() {
           {property.sdaEnrolmentStatus}
         </span>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS['properties-detail'].steps} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-gray-200 bg-white p-6">

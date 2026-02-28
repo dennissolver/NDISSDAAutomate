@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc/client';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'bg-red-100 text-red-700 border-red-200',
@@ -46,6 +48,8 @@ export default function ExceptionsPage() {
           ))}
         </div>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS.exceptions.steps} />
 
       <p className="text-xs text-gray-400">Severity: Critical = blocks claims/payments, Warning = action needed soon, Info = for awareness. Actions: Acknowledge = being investigated, Resolve = issue fixed, Dismiss = not applicable.</p>
 

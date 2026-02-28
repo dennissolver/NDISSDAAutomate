@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { ClientEntityType } from '@pf/shared';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 export default function NewClientPage() {
   const router = useRouter();
@@ -43,6 +45,8 @@ export default function NewClientPage() {
           <p className="mt-1 text-sm text-gray-500">Register a property owner or investor. Their details are used for reconciliation payouts and client statements.</p>
         </div>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS['clients-new'].steps} currentStep={WORKFLOWS['clients-new'].currentStep} />
 
       <form onSubmit={handleSubmit} className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

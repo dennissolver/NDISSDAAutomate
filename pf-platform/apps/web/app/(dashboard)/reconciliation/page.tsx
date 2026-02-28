@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc/client';
 import { formatAud } from '@pf/shared';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-gray-100 text-gray-700',
@@ -38,6 +40,8 @@ export default function ReconciliationPage() {
           ))}
         </div>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS.reconciliation.steps} />
 
       <p className="text-xs text-gray-400">Lifecycle: Pending → Generated (auto-calculated) → Reviewed → Approved → Published (client statement sent). Money In = rent + SDA subsidy. Net Payout = Money In minus agency fee, PF fee, GST, and expenses.</p>
 

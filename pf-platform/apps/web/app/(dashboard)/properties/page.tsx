@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Plus, Building2 } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 export default function PropertiesPage() {
   const [page, setPage] = useState(1);
@@ -24,6 +26,8 @@ export default function PropertiesPage() {
           Add Property
         </Link>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS['properties-list'].steps} />
 
       {isLoading ? (
         <p className="text-gray-500">Loading...</p>

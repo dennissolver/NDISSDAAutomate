@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 export default function ParticipantsPage() {
   const [page, setPage] = useState(1);
@@ -27,6 +29,8 @@ export default function ParticipantsPage() {
           </Link>
         </div>
       </div>
+      <WorkflowDiagram steps={WORKFLOWS['participants-list'].steps} />
+
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-400">Filter: Active = current plan, Expiring = plan ends within 90 days, Expired = plan has ended.</p>
         <div className="flex gap-2">

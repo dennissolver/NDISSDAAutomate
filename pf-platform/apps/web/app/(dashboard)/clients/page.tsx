@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 export default function ClientsPage() {
   const [page, setPage] = useState(1);
@@ -24,6 +26,8 @@ export default function ClientsPage() {
           Add Client
         </Link>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS['clients-list'].steps} />
 
       {isLoading ? <p className="text-gray-500">Loading...</p> : data?.data.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-12 text-center">

@@ -4,6 +4,8 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 export default function ParticipantDetailPage() {
   const params = useParams();
@@ -29,6 +31,8 @@ export default function ParticipantDetailPage() {
           'bg-red-100 text-red-700'
         }`}>{participant.planStatus}</span>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS['participants-detail'].steps} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-gray-200 bg-white p-6">

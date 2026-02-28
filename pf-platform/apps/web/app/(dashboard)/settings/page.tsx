@@ -5,6 +5,8 @@ import { User, Mail, Shield, LogOut, Building2, Bell, Key } from 'lucide-react';
 import { createClientSupabaseClient } from '@/lib/supabase/client';
 import { trpc } from '@/lib/trpc/client';
 import Button from '@/components/ui/button';
+import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
+import { WORKFLOWS } from '@/lib/workflow-data';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -26,6 +28,8 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Settings</h1>
         <p className="mt-1 text-sm text-gray-500">Manage your account and platform preferences.</p>
       </div>
+
+      <WorkflowDiagram steps={WORKFLOWS.settings.steps} />
 
       {/* Profile */}
       <section className="rounded-lg border border-gray-200 bg-white">
