@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { Plus } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 
 export default function ClientsPage() {
@@ -9,7 +11,16 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
+        <Link
+          href="/clients/new"
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+        >
+          <Plus className="h-4 w-4" />
+          Add Client
+        </Link>
+      </div>
 
       {isLoading ? <p className="text-gray-500">Loading...</p> : (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
