@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Briefcase,
   Calculator,
+  Upload,
   Settings,
 } from 'lucide-react';
 
@@ -23,6 +24,7 @@ const navItems = [
   { href: '/exceptions', label: 'Exceptions', icon: AlertTriangle },
   { href: '/clients', label: 'Clients', icon: Briefcase },
   { href: '/calculator', label: 'Calculator', icon: Calculator },
+  { href: '/upload', label: 'Bulk Upload', icon: Upload },
 ];
 
 const bottomItems = [

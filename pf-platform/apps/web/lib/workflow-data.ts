@@ -141,6 +141,15 @@ export const WORKFLOWS: Record<string, WorkflowConfig> = {
       { number: 5, title: 'Monitor for Recurrence', description: 'System watches for repeat issues' },
     ],
   },
+  upload: {
+    steps: [
+      { number: 1, title: 'Prepare CSV', description: 'Format data with required columns for the entity type' },
+      { number: 2, title: 'Select Entity Type', description: 'Choose Participants, Properties, or Clients' },
+      { number: 3, title: 'Upload & Preview', description: 'View parsed data before importing' },
+      { number: 4, title: 'Validate', description: 'System checks each row for errors' },
+      { number: 5, title: 'Import', description: 'Bulk create records in the database' },
+    ],
+  },
   settings: {
     steps: [
       { number: 1, title: 'View Profile', description: 'Check your name, email, and assigned role' },

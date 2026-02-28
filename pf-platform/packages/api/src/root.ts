@@ -8,6 +8,7 @@ import { exceptionRouter } from './routers/exception.router';
 import { calculatorRouter } from './routers/calculator.router';
 import { dashboardRouter } from './routers/dashboard.router';
 import { authRouter } from './routers/auth.router';
+import { uploadRouter } from './routers/upload.router';
 
 export const appRouter = router({
   property: propertyRouter,
@@ -19,6 +20,7 @@ export const appRouter = router({
   calculator: calculatorRouter,
   dashboard: dashboardRouter,
   auth: authRouter,
+  upload: uploadRouter,
 });
 
 export type AppRouter = typeof appRouter;

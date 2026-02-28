@@ -11,6 +11,10 @@
     "db:migrate": "cd packages/db && pnpm run migrate",
     "db:seed": "cd packages/db && pnpm run seed",
     "db:reset": "cd packages/db && pnpm run reset",
+    "db:seed:rates": "tsx scripts/seed/seed-sda-rates.ts",
+    "db:seed:mrrc": "tsx scripts/seed/seed-mrrc-rates.ts",
+    "db:seed:locations": "tsx scripts/seed/seed-location-factors.ts",
+    "db:seed:all": "tsx scripts/seed/seed-sda-rates.ts && tsx scripts/seed/seed-mrrc-rates.ts && tsx scripts/seed/seed-location-factors.ts",
     "scaffold:seed": "tsx scripts/seed/seed-sda-rates.ts"
   },
   "devDependencies": {
