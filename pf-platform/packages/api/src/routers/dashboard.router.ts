@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { router, protectedProcedure } from '../trpc';
-import { getDashboardStats, getRecentActivity } from '@pf/db';
+import { getDashboardStats, getRecentActivity, getMonthlyOverview, getAlerts } from '@pf/db';
 
 export const dashboardRouter = router({
   getStats: protectedProcedure
@@ -9,4 +9,14 @@ export const dashboardRouter = router({
   getRecentActivity: protectedProcedure
     .input(z.object({ limit: z.number().default(10) }).optional())
     .query(({ ctx, input }) => getRecentActivity(ctx.db, input?.limit)),
+
+  getMonthlyOverview: protectedProcedure
+    .input(z.object({
+      month: z.number().min(1).max(12),
+      year: z.number().min(2020).max(2100),
+    }))
+    .query(({ ctx, input }) => getMonthlyOverview(ctx.db, input.month, input.year)),
+
+  getAlerts: protectedProcedure
+    .query(({ ctx }) => getAlerts(ctx.db)),
 });

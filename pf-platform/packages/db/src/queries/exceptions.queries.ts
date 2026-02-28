@@ -58,6 +58,50 @@ export async function updateExceptionStatus(
   return mapRow(throwOnError(result) as Record<string, unknown>);
 }
 
+/**
+ * Find an existing open/acknowledged exception for a given entity and type,
+ * optionally scoped to a specific month/year (stored in metadata).
+ * Used for deduplication — prevents creating the same exception twice.
+ */
+export async function getExceptionByEntityAndType(
+  db: TypedSupabaseClient,
+  entityId: string,
+  entityType: 'property' | 'participant' | 'claim',
+  type: string,
+  month?: number,
+  year?: number,
+): Promise<Exception | null> {
+  let query = db
+    .from('exceptions')
+    .select('*')
+    .eq('type', type)
+    .in('status', ['open', 'acknowledged']);
+
+  // Filter by entity column based on entity type
+  if (entityType === 'property') {
+    query = query.eq('property_id', entityId);
+  } else if (entityType === 'participant') {
+    query = query.eq('participant_id', entityId);
+  } else if (entityType === 'claim') {
+    query = query.eq('claim_id', entityId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) return null;
+
+  // If month/year provided, filter by metadata
+  if (month !== undefined && year !== undefined) {
+    const match = data.find((row: Record<string, unknown>) => {
+      const meta = row.metadata as Record<string, unknown> | null;
+      return meta && meta.month === month && meta.year === year;
+    });
+    return match ? mapRow(match as Record<string, unknown>) : null;
+  }
+
+  return mapRow(data[0] as Record<string, unknown>);
+}
+
 export async function getOpenExceptionCount(
   db: TypedSupabaseClient,
 ): Promise<{ info: number; warning: number; critical: number }> {

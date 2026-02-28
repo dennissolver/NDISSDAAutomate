@@ -13,6 +13,7 @@ import {
 } from '@pf/db';
 import { generateReconciliation } from '@pf/core';
 import { toDollars } from '@pf/shared';
+import { parseStatement, getAdapterForAgency } from '@pf/ingestion';
 
 export const reconciliationRouter = router({
   list: protectedProcedure
@@ -101,6 +102,35 @@ export const reconciliationRouter = router({
 
       await auditAction(ctx, 'reconciliation.generated', 'reconciliation', recon.id);
       return recon;
+    }),
+
+  parseStatement: protectedProcedure
+    .input(z.object({
+      text: z.string(),
+      propertyId: z.string().uuid(),
+      agencyHint: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Resolve adapter — try agency hint first, then auto-detect from text
+      const adapter = getAdapterForAgency(input.agencyHint, input.text);
+      const result = parseStatement(input.text, adapter);
+
+      await auditAction(ctx, 'statement.parsed', 'property', input.propertyId);
+
+      return {
+        agencyName: result.agencyName,
+        statementNumber: result.statementNumber,
+        periodMonth: result.periodMonth,
+        periodYear: result.periodYear,
+        rentReceived: result.rentReceived,
+        managementFee: result.managementFee,
+        gstOnFee: result.gstOnFee,
+        energyReimbursement: result.energyReimbursement,
+        maintenanceCosts: result.maintenanceCosts,
+        otherItems: result.otherItems,
+        totalMoneyIn: result.totalMoneyIn,
+        confidence: result.confidence,
+      };
     }),
 
   updateStatus: protectedProcedure

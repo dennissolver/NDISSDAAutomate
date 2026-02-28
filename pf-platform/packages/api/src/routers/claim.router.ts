@@ -84,4 +84,69 @@ export const claimRouter = router({
       await auditAction(ctx, `claim.${input.status}`, 'claim', claim.id);
       return claim;
     }),
+
+  exportProdaCsv: protectedProcedure
+    .input(z.object({
+      claimIds: z.array(z.string().uuid()).min(1).max(500),
+    }))
+    .query(async ({ ctx, input }) => {
+      const claims = await Promise.all(
+        input.claimIds.map(id => getClaimById(ctx.db, id))
+      );
+
+      // Also need participant and property data for each claim
+      const rows = await Promise.all(claims.map(async (claim) => {
+        const [participant, property] = await Promise.all([
+          getParticipantById(ctx.db, claim.participantId),
+          getPropertyById(ctx.db, claim.propertyId),
+        ]);
+        return { claim, participant, property };
+      }));
+
+      // Build CSV header
+      const headers = [
+        'RegistrationNumber', 'NDISNumber', 'ParticipantFirstName', 'ParticipantLastName',
+        'ParticipantDateOfBirth', 'SupportItemNumber', 'ClaimReference',
+        'FromDate', 'ToDate', 'Quantity', 'Hours', 'UnitPrice', 'GSTCode',
+        'ClaimType', 'CancellationReason',
+      ];
+
+      // Format dates as YYYY/MM/DD (US format for PRODA)
+      const formatProdaDate = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}/${m}/${day}`;
+      };
+
+      const csvRows = rows.map(({ claim, participant, property }) => {
+        // Calculate quantity as number of days
+        const start = new Date(claim.periodStart);
+        const end = new Date(claim.periodEnd);
+        const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        // Unit price = total / days (in dollars, 2dp)
+        const unitPrice = (claim.totalAmount / 100 / days).toFixed(2);
+
+        return [
+          '', // RegistrationNumber - PF's NDIS registration number (to be configured)
+          participant.ndisNumber,
+          participant.firstName,
+          participant.lastName,
+          formatProdaDate(new Date(participant.dateOfBirth)),
+          claim.ndisItemNumber,
+          claim.claimReference,
+          formatProdaDate(start),
+          formatProdaDate(end),
+          days.toString(),
+          '', // Hours - not applicable for SDA
+          unitPrice,
+          'P1', // GST-free
+          '1', // New claim
+          '', // No cancellation
+        ];
+      });
+
+      const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
+      return { csv, filename: `proda-claims-${new Date().toISOString().split('T')[0]}.csv` };
+    }),
 });

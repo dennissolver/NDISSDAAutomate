@@ -48,6 +48,15 @@ export const WORKFLOWS: Record<string, WorkflowConfig> = {
       { number: 4, title: 'Navigate to Claims or Reconciliation', description: 'Use property data for downstream actions' },
     ],
   },
+  'properties-registration': {
+    steps: [
+      { number: 1, title: 'Prepare Documents', description: 'Gather all 6 required documents: Rates Notice, SDA Assessment Certificate, Building Compliance Certificate, Floor Plans, Insurance Certificate, Fire Safety Statement' },
+      { number: 2, title: 'Submit to NDIA', description: 'Upload documentation via MyPlace portal for dwelling enrolment' },
+      { number: 3, title: 'Await Assessment', description: 'NDIA reviews submission and verifies dwelling meets SDA requirements' },
+      { number: 4, title: 'Handle RFI', description: 'Respond to Request for Information if received from NDIA assessors' },
+      { number: 5, title: 'Receive Approval', description: 'Enrolment certificate issued and dwelling registered for SDA claims' },
+    ],
+  },
   'participants-list': {
     steps: [
       { number: 1, title: 'Register Participant', description: 'Add NDIS participant with plan and SDA funding details' },

@@ -13,6 +13,7 @@
     "@pf/shared": "workspace:*",
     "@pf/core": "workspace:*",
     "@pf/db": "workspace:*",
+    "@pf/ingestion": "workspace:*",
     "zod": "^3.22.0",
     "superjson": "^2.2.0"
   },

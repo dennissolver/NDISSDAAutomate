@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { Plus, Download, ClipboardCheck } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { formatAud } from '@pf/shared';
 import { WorkflowDiagram } from '@/components/ui/workflow-diagram';
@@ -21,7 +21,32 @@ export default function ClaimsPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string | undefined>();
   const [pathway, setPathway] = useState<string | undefined>();
+  const [exportIds, setExportIds] = useState<string[]>([]);
   const { data, isLoading } = trpc.claim.list.useQuery({ page, pageSize: 20, status, pathway });
+
+  const { data: csvData } = trpc.claim.exportProdaCsv.useQuery(
+    { claimIds: exportIds },
+    { enabled: exportIds.length > 0, onSuccess: (result) => {
+      // Download file
+      const blob = new Blob([result.csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportIds([]);
+    }},
+  );
+
+  function handleExportCsv() {
+    if (!data?.data) return;
+    const ids = data.data
+      .filter(c => c.claimPathway === 'ndia_managed' && ['draft', 'validated'].includes(c.status))
+      .map(c => c.id);
+    if (ids.length === 0) return;
+    setExportIds(ids);
+  }
 
   return (
     <div className="space-y-6">
@@ -40,6 +65,20 @@ export default function ClaimsPage() {
             <Plus className="h-4 w-4" />
             Generate Claim
           </Link>
+          <Link
+            href="/claims/prepare"
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            <ClipboardCheck className="h-4 w-4" />
+            Prepare Monthly Claims
+          </Link>
+          <button
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            <Download className="h-4 w-4" />
+            Export PRODA CSV
+          </button>
           <div className="flex gap-2">
             {['all', 'ndia_managed', 'agency_managed'].map(p => (
               <button key={p}

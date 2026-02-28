@@ -13,6 +13,7 @@
     "@pf/api": "workspace:*",
     "@pf/core": "workspace:*",
     "@pf/db": "workspace:*",
+    "@pf/orchestration": "workspace:*",
     "@pf/shared": "workspace:*",
     "@supabase/ssr": "^0.6.0",
     "@supabase/supabase-js": "^2.43.0",
