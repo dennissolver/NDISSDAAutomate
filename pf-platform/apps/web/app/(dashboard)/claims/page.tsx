@@ -25,7 +25,10 @@ export default function ClaimsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">Claims</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Claims</h1>
+            <p className="mt-1 text-sm text-gray-500">SDA payment claims for participant occupancy. NDIA-managed claims are submitted directly to the NDIA; agency-managed claims are invoiced to the plan manager via Xero.</p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <Link
@@ -56,6 +59,8 @@ export default function ClaimsPage() {
           </select>
         </div>
       </div>
+
+      <p className="text-xs text-gray-400">Claim lifecycle: Draft → Validated → Submitted → Approved → Paid. Rejected claims generate an exception for review.</p>
 
       {isLoading ? <p className="text-gray-500">Loading...</p> : (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">

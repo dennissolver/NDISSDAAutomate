@@ -12,7 +12,10 @@ export default function ClientsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
+          <p className="mt-1 text-sm text-gray-500">Property owners and investors who receive SDA rental income. Client details are used for reconciliation payouts and statements.</p>
+        </div>
         <Link
           href="/clients/new"
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
@@ -22,7 +25,15 @@ export default function ClientsPage() {
         </Link>
       </div>
 
-      {isLoading ? <p className="text-gray-500">Loading...</p> : (
+      {isLoading ? <p className="text-gray-500">Loading...</p> : data?.data.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-12 text-center">
+          <p className="text-sm font-medium text-gray-700">No clients yet</p>
+          <p className="mt-1 text-sm text-gray-500">Add property owners or investors so you can assign properties and generate reconciliation payouts.</p>
+          <Link href="/clients/new" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            <Plus className="h-4 w-4" /> Add Client
+          </Link>
+        </div>
+      ) : (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">

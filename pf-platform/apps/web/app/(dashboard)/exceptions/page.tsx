@@ -29,7 +29,10 @@ export default function ExceptionsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Exceptions</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Exceptions</h1>
+          <p className="mt-1 text-sm text-gray-500">Automated alerts for issues requiring attention — expired plans, rejected claims, missing statements, and more.</p>
+        </div>
         <div className="flex gap-2">
           {['all', 'open', 'acknowledged', 'resolved', 'dismissed'].map(s => (
             <button key={s}
@@ -43,6 +46,8 @@ export default function ExceptionsPage() {
           ))}
         </div>
       </div>
+
+      <p className="text-xs text-gray-400">Severity: Critical = blocks claims/payments, Warning = action needed soon, Info = for awareness. Actions: Acknowledge = being investigated, Resolve = issue fixed, Dismiss = not applicable.</p>
 
       {counts && (
         <div className="flex gap-4">

@@ -38,7 +38,10 @@ export default function NewClientPage() {
         <Link href="/clients" className="rounded-lg p-2 text-gray-400 hover:bg-gray-100">
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900">New Client</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">New Client</h1>
+          <p className="mt-1 text-sm text-gray-500">Register a property owner or investor. Their details are used for reconciliation payouts and client statements.</p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
@@ -72,6 +75,7 @@ export default function NewClientPage() {
                 <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-gray-400">Individual, company, trust, or SMSF. Determines how reconciliation payouts and tax documents are handled.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Entity Name</label>
@@ -86,11 +90,12 @@ export default function NewClientPage() {
               onChange={e => update('abn', e.target.value)}
               placeholder="XX XXX XXX XXX"
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <p className="mt-1 text-xs text-gray-400">Required for companies and trusts. Used on reconciliation statements and Xero invoices.</p>
           </div>
 
           <div className="sm:col-span-2">
             <h3 className="text-sm font-semibold text-gray-900">Bank Details</h3>
-            <p className="text-xs text-gray-500">For client payout disbursements</p>
+            <p className="text-xs text-gray-500">For monthly reconciliation payout disbursements. Net payout (income minus deductions) is transferred to this account after reconciliation is approved.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">BSB</label>

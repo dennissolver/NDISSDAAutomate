@@ -21,7 +21,10 @@ export default function ReconciliationPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Reconciliation</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Reconciliation</h1>
+          <p className="mt-1 text-sm text-gray-500">Monthly reconciliation compares SDA income against property expenses to calculate net client payouts.</p>
+        </div>
         <div className="flex gap-2">
           {['all', 'pending', 'generated', 'reviewed', 'approved', 'published'].map(s => (
             <button key={s}
@@ -35,6 +38,8 @@ export default function ReconciliationPage() {
           ))}
         </div>
       </div>
+
+      <p className="text-xs text-gray-400">Lifecycle: Pending → Generated (auto-calculated) → Reviewed → Approved → Published (client statement sent). Money In = rent + SDA subsidy. Net Payout = Money In minus agency fee, PF fee, GST, and expenses.</p>
 
       {isLoading ? <p className="text-gray-500">Loading...</p> : (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">

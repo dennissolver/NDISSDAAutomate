@@ -82,8 +82,21 @@ export default function LoginPage() {
             PF Platform
           </h1>
           <p className="mt-1.5 text-sm text-gray-500">
-            SDA claims, reconciliation & property management
+            NDIS SDA management for Property Friends
           </p>
+        </div>
+
+        {/* Value Proposition */}
+        <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50/50 px-5 py-4 text-left">
+          <p className="text-sm font-medium text-gray-800">
+            The operational hub for Property Friends coordinators.
+          </p>
+          <ul className="mt-2 space-y-1 text-xs text-gray-600">
+            <li>Automated SDA claim generation and submission</li>
+            <li>Monthly reconciliation of rental income and expenses</li>
+            <li>Property, participant, and client management</li>
+            <li>Exception tracking and compliance monitoring</li>
+          </ul>
         </div>
 
         {/* Card */}

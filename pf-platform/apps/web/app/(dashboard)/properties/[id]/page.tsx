@@ -52,7 +52,8 @@ export default function PropertyDetailPage() {
 
         {sdaPricing && (
           <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">SDA Pricing (FY 2025-26)</h2>
+            <h2 className="mb-2 text-lg font-semibold text-gray-900">SDA Pricing (FY 2025-26)</h2>
+            <p className="mb-4 text-xs text-gray-500">Calculated from the property's building type, design category, supplements, and location factor. This is the amount claimable per participant from the NDIA.</p>
             <dl className="space-y-3">
               <Detail label="Base Annual Rate" value={`$${sdaPricing.baseAnnualRate.toLocaleString()}`} />
               {sdaPricing.ooaSupplement > 0 && <Detail label="OOA Supplement" value={`$${sdaPricing.ooaSupplement.toLocaleString()}`} />}
@@ -69,7 +70,8 @@ export default function PropertyDetailPage() {
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">Current Occupants</h2>
+        <h2 className="mb-2 text-lg font-semibold text-gray-900">Current Occupants</h2>
+        <p className="mb-4 text-xs text-gray-500">Participants currently residing at this property. Occupancy records are used to calculate occupied days for SDA claims.</p>
         {data.occupancies && data.occupancies.length > 0 ? (
           <table className="min-w-full divide-y divide-gray-200">
             <thead>

@@ -41,7 +41,10 @@ export default function NewParticipantPage() {
         <Link href="/participants" className="rounded-lg p-2 text-gray-400 hover:bg-gray-100">
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900">New Participant</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">New Participant</h1>
+          <p className="mt-1 text-sm text-gray-500">Register an NDIS participant who will be housed in one of your SDA properties.</p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
@@ -53,6 +56,7 @@ export default function NewParticipantPage() {
               placeholder="e.g. 431234567"
               minLength={9}
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <p className="mt-1 text-xs text-gray-400">The participant's 9-digit NDIS number. Found on their NDIS plan or myGov account.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">First Name</label>
@@ -88,6 +92,7 @@ export default function NewParticipantPage() {
 
           <div className="sm:col-span-2">
             <h3 className="text-sm font-semibold text-gray-900">Plan Details</h3>
+            <p className="text-xs text-gray-400">Information from the participant's NDIS plan. Determines the claim pathway (NDIA-managed vs agency-managed) and validates claim eligibility.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Plan Management Type</label>
@@ -97,6 +102,7 @@ export default function NewParticipantPage() {
                 <option key={t} value={t}>{t.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-gray-400">NDIA-managed: claims submitted directly to NDIA. Agency/self-managed: invoiced via plan manager.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Plan Status</label>
@@ -129,6 +135,7 @@ export default function NewParticipantPage() {
               <option value="robust">Robust</option>
               <option value="high_physical_support">High Physical Support</option>
             </select>
+            <p className="mt-1 text-xs text-gray-400">The SDA design category approved in the participant's NDIS plan. Must match or be compatible with the property's design category.</p>
           </div>
         </div>
 

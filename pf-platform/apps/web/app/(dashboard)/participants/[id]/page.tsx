@@ -42,7 +42,8 @@ export default function ParticipantDetailPage() {
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">Plan Information</h2>
+          <h2 className="mb-2 text-lg font-semibold text-gray-900">Plan Information</h2>
+          <p className="mb-4 text-xs text-gray-500">Details from the participant's current NDIS plan. Claims can only be generated while the plan status is active.</p>
           <dl className="space-y-3">
             <Detail label="Management Type" value={participant.planManagementType.replace(/_/g, ' ')} />
             <Detail label="Plan Status" value={participant.planStatus} />

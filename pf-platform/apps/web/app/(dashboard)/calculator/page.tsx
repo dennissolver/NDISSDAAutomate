@@ -7,7 +7,10 @@ import { trpc } from '@/lib/trpc/client';
 export default function CalculatorPage() {
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900">SDA & MRRC Calculator</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">SDA & MRRC Calculator</h1>
+        <p className="mt-1 text-sm text-gray-500">Estimate SDA funding amounts and Maximum Reasonable Rent Contribution (MRRC) for any property configuration. Use this to model pricing before registering properties.</p>
+      </div>
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <SdaCalculator />
         <MrrcCalculator />
@@ -31,7 +34,8 @@ function SdaCalculator() {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6">
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">SDA Pricing Calculator</h2>
+      <h2 className="mb-2 text-lg font-semibold text-gray-900">SDA Pricing Calculator</h2>
+      <p className="mb-4 text-xs text-gray-500">Formula: (Base Rate + Supplements) x Location Factor. Base rate is determined by Building Type + Design Category from the NDIA SDA Price Guide.</p>
 
       <div className="space-y-4">
         <div>
@@ -101,8 +105,8 @@ function MrrcCalculator() {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6">
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">MRRC Calculator</h2>
-      <p className="mb-4 text-xs text-gray-500">Maximum Reasonable Rent Contribution</p>
+      <h2 className="mb-2 text-lg font-semibold text-gray-900">MRRC Calculator</h2>
+      <p className="mb-4 text-xs text-gray-500">Maximum Reasonable Rent Contribution — the participant's rent contribution deducted from SDA claims. Formula: (DSP x 25%) + (Pension Supplement x 25%) + (CRA x 100%). Values come from current Centrelink rates.</p>
 
       <div className="space-y-4">
         <div>
@@ -110,18 +114,21 @@ function MrrcCalculator() {
           <input type="number" step="0.01" value={input.dspBasicFortnight}
             onChange={e => update('dspBasicFortnight', parseFloat(e.target.value) || 0)}
             className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <p className="mt-1 text-xs text-gray-400">Disability Support Pension basic rate per fortnight. Check Services Australia for current rate.</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">Pension Supplement (Fortnightly)</label>
           <input type="number" step="0.01" value={input.pensionSuppFortnight}
             onChange={e => update('pensionSuppFortnight', parseFloat(e.target.value) || 0)}
             className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <p className="mt-1 text-xs text-gray-400">Pension supplement component per fortnight.</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">CRA Max (Fortnightly)</label>
           <input type="number" step="0.01" value={input.craMaxFortnight}
             onChange={e => update('craMaxFortnight', parseFloat(e.target.value) || 0)}
             className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <p className="mt-1 text-xs text-gray-400">Commonwealth Rent Assistance maximum rate per fortnight.</p>
         </div>
       </div>
 

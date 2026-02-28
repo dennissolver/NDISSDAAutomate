@@ -13,7 +13,10 @@ export default function ParticipantsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Participants</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Participants</h1>
+          <p className="mt-1 text-sm text-gray-500">NDIS participants with SDA funding who reside in your properties. Monitor plan status to ensure claims are submitted before plans expire.</p>
+        </div>
         <div className="flex items-center gap-3">
           <Link
             href="/participants/new"
@@ -25,7 +28,7 @@ export default function ParticipantsPage() {
         </div>
       </div>
       <div className="flex items-center justify-between">
-        <div />
+        <p className="text-xs text-gray-400">Filter: Active = current plan, Expiring = plan ends within 90 days, Expired = plan has ended.</p>
         <div className="flex gap-2">
           {['all', 'active', 'expiring', 'expired'].map(status => (
             <button key={status}

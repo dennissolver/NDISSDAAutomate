@@ -58,6 +58,7 @@ export default function SettingsPage() {
                       {user?.role ?? '—'}
                     </span>
                   </div>
+                  <p className="mt-1 text-xs text-gray-400">Admin: full access. Coordinator: manage properties, participants, claims. Finance: reconciliation and payouts.</p>
                 </div>
                 <div>
                   <label className="text-xs font-medium uppercase tracking-wider text-gray-400">Status</label>

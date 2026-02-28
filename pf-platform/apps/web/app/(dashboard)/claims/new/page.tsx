@@ -56,7 +56,7 @@ export default function NewClaimPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Generate Claim</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Select a property and participant to generate an SDA claim for the specified period.</p>
+          <p className="mt-0.5 text-sm text-gray-500">Select a property and participant to generate an SDA claim for the specified period. The system will calculate SDA amount, MRRC deduction, and occupied days automatically based on stored data.</p>
         </div>
       </div>
 
@@ -122,6 +122,7 @@ export default function NewClaimPage() {
                 onChange={e => update('occupiedDays', e.target.value)}
                 placeholder="Auto"
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              <p className="mt-1 text-xs text-gray-400">Days the participant occupied the property this period. Auto-calculated from occupancy records if blank.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">MRRC Fortnightly ($)</label>
@@ -129,6 +130,7 @@ export default function NewClaimPage() {
                 onChange={e => update('mrrcFortnightly', e.target.value)}
                 placeholder="Auto"
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              <p className="mt-1 text-xs text-gray-400">Maximum Reasonable Rent Contribution per fortnight. Auto-calculated from DSP, pension supplement, and CRA if blank.</p>
             </div>
           </div>
 

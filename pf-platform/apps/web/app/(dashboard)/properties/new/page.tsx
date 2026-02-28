@@ -43,7 +43,10 @@ export default function NewPropertyPage() {
         <Link href="/properties" className="rounded-lg p-2 text-gray-400 hover:bg-gray-100">
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900">New Property</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">New Property</h1>
+          <p className="mt-1 text-sm text-gray-500">Register an SDA property. The building type, design category, and location factor determine the NDIS funding rate for this property.</p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
@@ -88,6 +91,7 @@ export default function NewPropertyPage() {
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
               {Object.values(BuildingType).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
             </select>
+            <p className="mt-1 text-xs text-gray-400">The SDA dwelling type (e.g. house, apartment, villa). Determines the base funding rate.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Design Category</label>
@@ -95,12 +99,14 @@ export default function NewPropertyPage() {
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
               {Object.values(DesignCategory).map(d => <option key={d} value={d}>{d.replace(/_/g, ' ')}</option>)}
             </select>
+            <p className="mt-1 text-xs text-gray-400">The SDA design standard (e.g. High Physical Support, Fully Accessible). Paired with building type to set the rate.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Location Factor</label>
             <input type="number" step="0.01" min="0.5" max="2.0" value={form.location_factor}
               onChange={e => update('location_factor', parseFloat(e.target.value))}
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <p className="mt-1 text-xs text-gray-400">NDIA location multiplier (1.0 = standard). Higher values apply to remote or high-cost areas.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Max Residents</label>
@@ -113,12 +119,13 @@ export default function NewPropertyPage() {
             <input type="text" required value={form.owner_id}
               onChange={e => update('owner_id', e.target.value)}
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <p className="mt-1 text-xs text-gray-400">The client (property owner/investor) who receives rental income from this property.</p>
           </div>
           <div className="flex items-center gap-6 sm:col-span-2">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={form.has_ooa} onChange={e => update('has_ooa', e.target.checked)}
                 className="rounded border-gray-300" />
-              <span className="text-sm text-gray-700">OOA</span>
+              <span className="text-sm text-gray-700">OOA <span className="text-xs text-gray-400">(Onsite Overnight Assistance)</span></span>
             </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={form.has_breakout_room} onChange={e => update('has_breakout_room', e.target.checked)}
